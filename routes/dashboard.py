@@ -128,6 +128,7 @@ def index():
         recruiters=recruiters,
         workflow_statuses=workflow_statuses,
         all_teams=all_teams_list,
+        teams_map=teams_map,
         experts=experts,
         branches=branches,
         brands=brands,

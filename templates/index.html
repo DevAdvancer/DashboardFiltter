@@ -365,6 +365,12 @@
 </div>
 {% endblock %}
 
+{% block page_data %}
+<script>
+window.teamsMap = {{ teams_map|tojson }};
+</script>
+{% endblock %}
+
 {% block scripts %}
 <script>
 // Status Distribution Chart

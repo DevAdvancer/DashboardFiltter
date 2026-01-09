@@ -451,6 +451,12 @@
 </div>
 {% endblock %}
 
+{% block page_data %}
+<script>
+window.teamsMap = {{ teams_map|tojson }};
+</script>
+{% endblock %}
+
 {% block scripts %}
 <script>
 {% if team_detail and member_stats %}

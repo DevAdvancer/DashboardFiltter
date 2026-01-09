@@ -87,7 +87,7 @@
                         </svg>
                         <span>Interview Records</span>
                     </a>
-                    <a href="{{ url_for('candidates.search') }}" class="nav-link {% if request.endpoint == 'candidates.search' %}active{% endif %}">
+                    <a href="{{ url_for('candidates.candidate_lookup') }}" class="nav-link {% if request.endpoint == 'candidates.candidate_lookup' %}active{% endif %}">
                         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                             <circle cx="11" cy="11" r="7"/>
                             <path d="m21 21-4.35-4.35"/>
@@ -272,6 +272,112 @@
 
         // Initialize
         restoreDates();
+    })();
+    </script>
+
+    <!-- Team-Expert Filter Link Script -->
+    {% block page_data %}{% endblock %}
+    <script>
+    (function() {
+        // Check if we have teamsMap data
+        if (typeof window.teamsMap === 'undefined') return;
+
+        // Get team and expert select elements (support both single and multi-select)
+        const teamSelect = document.querySelector('select[name="team"]');
+        const expertSelect = document.querySelector('select[name="expert"]');
+
+        if (!teamSelect || !expertSelect) return;
+
+        const isMultiSelect = expertSelect.multiple;
+
+        // Store all expert options
+        const allExpertOptions = Array.from(expertSelect.options).map(opt => ({
+            value: opt.value,
+            text: opt.text,
+            selected: opt.selected
+        }));
+
+        // Get selected teams (works for both single and multi-select)
+        function getSelectedTeams() {
+            if (teamSelect.multiple) {
+                return Array.from(teamSelect.selectedOptions).map(opt => opt.value).filter(v => v);
+            } else {
+                return teamSelect.value ? [teamSelect.value] : [];
+            }
+        }
+
+        // Get selected experts (for preserving selection)
+        function getSelectedExperts() {
+            if (expertSelect.multiple) {
+                return Array.from(expertSelect.selectedOptions).map(opt => opt.value);
+            } else {
+                return expertSelect.value ? [expertSelect.value] : [];
+            }
+        }
+
+        // Get all team members for selected teams
+        function getTeamMembers(selectedTeams) {
+            const members = new Set();
+            selectedTeams.forEach(teamName => {
+                if (window.teamsMap[teamName]) {
+                    window.teamsMap[teamName].forEach(member => members.add(member));
+                }
+            });
+            return members;
+        }
+
+        // Function to filter expert options based on selected team(s)
+        function filterExperts() {
+            const selectedTeams = getSelectedTeams();
+            const currentSelectedExperts = getSelectedExperts();
+
+            // Clear expert select
+            expertSelect.innerHTML = '';
+
+            // For single-select, add "All Experts" option
+            if (!isMultiSelect) {
+                const allOption = document.createElement('option');
+                allOption.value = '';
+                allOption.textContent = 'All Experts';
+                expertSelect.appendChild(allOption);
+            }
+
+            if (selectedTeams.length > 0) {
+                // If team(s) selected, show only members of those teams
+                const teamMembers = getTeamMembers(selectedTeams);
+
+                allExpertOptions.forEach(opt => {
+                    if (opt.value && teamMembers.has(opt.value)) {
+                        const option = document.createElement('option');
+                        option.value = opt.value;
+                        option.textContent = opt.text;
+                        if (currentSelectedExperts.includes(opt.value)) {
+                            option.selected = true;
+                        }
+                        expertSelect.appendChild(option);
+                    }
+                });
+            } else {
+                // If no team selected, show all experts
+                allExpertOptions.forEach(opt => {
+                    if (opt.value) {
+                        const option = document.createElement('option');
+                        option.value = opt.value;
+                        option.textContent = opt.text;
+                        if (currentSelectedExperts.includes(opt.value)) {
+                            option.selected = true;
+                        }
+                        expertSelect.appendChild(option);
+                    }
+                });
+            }
+        }
+
+        // Listen for team selection change
+        teamSelect.addEventListener('change', filterExperts);
+
+        // Run on page load to apply initial filter if team is pre-selected
+        filterExperts();
     })();
     </script>
 
