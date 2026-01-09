@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block page_title %}InterviewOS{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <div class="logo-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                            <rect x="3" y="3" width="18" height="18" rx="4" fill="currentColor"/>
+                            <path d="M8 12h8M12 8v8" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                    <span class="logo-text">InterviewOS</span>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <span class="nav-section-title">Analytics</span>
+                    <a href="{{ url_for('dashboard.index') }}" class="nav-link {% if request.endpoint == 'dashboard.index' %}active{% endif %}">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <rect x="3" y="3" width="7" height="7" rx="1"/>
+                            <rect x="14" y="3" width="7" height="4" rx="1"/>
+                            <rect x="3" y="14" width="7" height="7" rx="1"/>
+                            <rect x="14" y="11" width="7" height="10" rx="1"/>
+                        </svg>
+                        <span>Dashboard Overview</span>
+                    </a>
+                    <a href="{{ url_for('analytics.expert_analytics') }}" class="nav-link {% if request.endpoint == 'analytics.expert_analytics' %}active{% endif %}">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <circle cx="12" cy="8" r="4"/>
+                            <path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+                        </svg>
+                        <span>Expert Analytics</span>
+                    </a>
+                    <a href="{{ url_for('analytics.team_analytics') }}" class="nav-link {% if request.endpoint == 'analytics.team_analytics' %}active{% endif %}">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <circle cx="9" cy="7" r="3"/>
+                            <circle cx="15" cy="7" r="3"/>
+                            <path d="M3 18c0-3 3-5 6-5 1.5 0 3 .5 4 1.5M15 13c3 0 6 2 6 5"/>
+                        </svg>
+                        <span>Team Analytics</span>
+                    </a>
+                    <a href="{{ url_for('analytics.funnel_analytics') }}" class="nav-link {% if request.endpoint == 'analytics.funnel_analytics' %}active{% endif %}">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M3 4h18l-6 8v6l-6 2V12L3 4z"/>
+                        </svg>
+                        <span>Funnel Analytics</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <span class="nav-section-title">Management</span>
+                    <a href="{{ url_for('candidates.search') }}" class="nav-link {% if request.endpoint == 'candidates.search' %}active{% endif %}">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <circle cx="11" cy="11" r="7"/>
+                            <path d="m21 21-4.35-4.35"/>
+                        </svg>
+                        <span>Candidate Lookup</span>
+                    </a>
+                    <a href="{{ url_for('teams.manage') }}" class="nav-link {% if request.endpoint == 'teams.manage' %}active{% endif %}">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <rect x="3" y="3" width="7" height="7" rx="2"/>
+                            <rect x="14" y="3" width="7" height="7" rx="2"/>
+                            <rect x="3" y="14" width="7" height="7" rx="2"/>
+                            <rect x="14" y="14" width="7" height="7" rx="2"/>
+                        </svg>
+                        <span>Team Management</span>
+                    </a>
+                    <a href="{{ url_for('analytics.export_center') }}" class="nav-link {% if request.endpoint == 'analytics.export_center' %}active{% endif %}">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                            <polyline points="7,10 12,15 17,10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        <span>Export Center</span>
+                    </a>
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-badge">
+                    <div class="avatar">A</div>
+                    <div class="user-info">
+                        <span class="user-name">Admin</span>
+                        <span class="user-role">Manager</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <div class="main-wrapper">
+            <!-- Top Bar with Global Date Filter -->
+            <header class="topbar">
+                <div class="topbar-left">
+                    <h1 class="page-title">{% block title %}Dashboard{% endblock %}</h1>
+                </div>
+
+                <div class="topbar-center">
+                    <!-- Universal Date Filter -->
+                    <form id="global-date-filter" class="date-filter-form" method="GET">
+                        <div class="filter-group">
+                            <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <rect x="3" y="4" width="18" height="18" rx="2"/>
+                                <line x1="16" y1="2" x2="16" y2="6"/>
+                                <line x1="8" y1="2" x2="8" y2="6"/>
+                                <line x1="3" y1="10" x2="21" y2="10"/>
+                            </svg>
+                            <input type="date" name="start_date" value="{{ start_date or '' }}" class="date-input" placeholder="Start date">
+                            <span class="date-separator">to</span>
+                            <input type="date" name="end_date" value="{{ end_date or '' }}" class="date-input" placeholder="End date">
+                            <button type="submit" class="btn btn-primary btn-sm">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                    <polyline points="20,6 9,17 4,12"/>
+                                </svg>
+                                Apply
+                            </button>
+                            {% if start_date or end_date %}
+                            <a href="{{ request.path }}" class="btn btn-ghost btn-sm">Clear</a>
+                            {% endif %}
+                        </div>
+                        <!-- Preserve other query params -->
+                        {% for key, values in request.args.lists() %}
+                            {% if key not in ['start_date', 'end_date'] %}
+                                {% for value in values %}
+                                <input type="hidden" name="{{ key }}" value="{{ value }}">
+                                {% endfor %}
+                            {% endif %}
+                        {% endfor %}
+                    </form>
+                </div>
+
+                <div class="topbar-right">
+                    <div class="status-badge">
+                        <span class="status-dot"></span>
+                        Live Data
+                    </div>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <main class="main-content">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -3,3 +3,4 @@ pandas
 plotly
 pymongo
 openpyxl
+flask

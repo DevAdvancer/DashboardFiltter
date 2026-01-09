@@ -1,0 +1,383 @@
+{% extends "base.html" %}
+
+{% block page_title %}Funnel Analytics - InterviewOS{% endblock %}
+{% block title %}Funnel Analytics{% endblock %}
+
+{% block content %}
+<div class="analytics-page">
+    <!-- Filters Section -->
+    <div class="filters-card card">
+        <form method="GET" action="{{ url_for('analytics.funnel_analytics') }}" class="filters-form">
+            <!-- Preserve date params from global filter -->
+            <input type="hidden" name="start_date" value="{{ start_date }}">
+            <input type="hidden" name="end_date" value="{{ end_date }}">
+            <div class="filters-row">
+                <div class="filter-item">
+                    <label>
+                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+                            <circle cx="9" cy="7" r="4"/>
+                            <path d="M23 21v-2a4 4 0 00-3-3.87"/>
+                            <path d="M16 3.13a4 4 0 010 7.75"/>
+                        </svg>
+                        Team
+                    </label>
+                    <select name="team" class="select-single">
+                        <option value="">All Teams</option>
+                        {% for team in teams %}
+                        <option value="{{ team }}" {% if selected_team == team %}selected{% endif %}>{{ team }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-actions">
+                    <button type="submit" class="btn btn-primary">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46"/>
+                        </svg>
+                        Apply
+                    </button>
+                    <a href="{{ url_for('analytics.funnel_analytics', start_date=start_date, end_date=end_date) }}" class="btn btn-ghost">Reset</a>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Overall Funnel Stats -->
+    <div class="stats-row">
+        <div class="stat-card">
+            <div class="stat-icon blue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 4h18l-6 8v6l-6 2V12L3 4z"/>
+                </svg>
+            </div>
+            <div class="stat-content">
+                <span class="stat-label">Screening</span>
+                <span class="stat-value">{{ funnel_totals.screening }}</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon purple">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+                </svg>
+            </div>
+            <div class="stat-content">
+                <span class="stat-label">Total Interviews</span>
+                <span class="stat-value">{{ funnel_totals.total_interviews }}</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon green">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+                    <polyline points="22,4 12,14.01 9,11.01"/>
+                </svg>
+            </div>
+            <div class="stat-content">
+                <span class="stat-label">Final Stage</span>
+                <span class="stat-value">{{ funnel_totals.final }}</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon teal">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="20" x2="12" y2="10"/>
+                    <line x1="18" y1="20" x2="18" y2="4"/>
+                    <line x1="6" y1="20" x2="6" y2="16"/>
+                </svg>
+            </div>
+            <div class="stat-content">
+                <span class="stat-label">Avg Conversion</span>
+                <span class="stat-value">{{ funnel_totals.screening_to_1st }}%</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Funnel Visualization -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M3 4h18l-6 8v6l-6 2V12L3 4z"/>
+                </svg>
+                Interview Pipeline Funnel
+            </h3>
+        </div>
+        <div class="funnel-visual-large">
+            <div class="funnel-stage-large">
+                <div class="funnel-bar-large screening" style="width: 100%">
+                    <span class="funnel-label">Screening</span>
+                    <span class="funnel-count">{{ funnel_totals.screening }}</span>
+                </div>
+                <span class="funnel-percent-large">100%</span>
+            </div>
+            <div class="funnel-arrow-large">
+                <span class="conversion-badge">{{ funnel_totals.screening_to_1st }}%</span>
+            </div>
+            <div class="funnel-stage-large">
+                {% set w1 = (funnel_totals.first / funnel_totals.screening * 100) if funnel_totals.screening > 0 else 0 %}
+                <div class="funnel-bar-large first" style="width: {{ [w1, 15]|max }}%">
+                    <span class="funnel-label">1st Round</span>
+                    <span class="funnel-count">{{ funnel_totals.first }}</span>
+                </div>
+                <span class="funnel-percent-large">{{ w1|round(1) }}%</span>
+            </div>
+            <div class="funnel-arrow-large">
+                <span class="conversion-badge">{{ funnel_totals.first_to_2nd }}%</span>
+            </div>
+            <div class="funnel-stage-large">
+                {% set w2 = (funnel_totals.second / funnel_totals.screening * 100) if funnel_totals.screening > 0 else 0 %}
+                <div class="funnel-bar-large second" style="width: {{ [w2, 12]|max }}%">
+                    <span class="funnel-label">2nd Round</span>
+                    <span class="funnel-count">{{ funnel_totals.second }}</span>
+                </div>
+                <span class="funnel-percent-large">{{ w2|round(1) }}%</span>
+            </div>
+            <div class="funnel-arrow-large">
+                <span class="conversion-badge">{{ funnel_totals.second_to_3rd }}%</span>
+            </div>
+            <div class="funnel-stage-large">
+                {% set w3 = (funnel_totals.third_tech / funnel_totals.screening * 100) if funnel_totals.screening > 0 else 0 %}
+                <div class="funnel-bar-large third" style="width: {{ [w3, 10]|max }}%">
+                    <span class="funnel-label">3rd/Technical</span>
+                    <span class="funnel-count">{{ funnel_totals.third_tech }}</span>
+                </div>
+                <span class="funnel-percent-large">{{ w3|round(1) }}%</span>
+            </div>
+            <div class="funnel-arrow-large">
+                <span class="conversion-badge">{{ funnel_totals.third_to_final }}%</span>
+            </div>
+            <div class="funnel-stage-large">
+                {% set wf = (funnel_totals.final / funnel_totals.screening * 100) if funnel_totals.screening > 0 else 0 %}
+                <div class="funnel-bar-large final" style="width: {{ [wf, 8]|max }}%">
+                    <span class="funnel-label">Final</span>
+                    <span class="funnel-count">{{ funnel_totals.final }}</span>
+                </div>
+                <span class="funnel-percent-large">{{ wf|round(1) }}%</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="charts-row">
+        <div class="chart-card card">
+            <div class="card-header">
+                <h3 class="card-title">Funnel Progression</h3>
+            </div>
+            <div class="chart-container">
+                <canvas id="funnelBarChart"></canvas>
+            </div>
+        </div>
+        <div class="chart-card card">
+            <div class="card-header">
+                <h3 class="card-title">Conversion Rates</h3>
+            </div>
+            <div class="chart-container">
+                <canvas id="conversionChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Team Breakdown -->
+    {% if team_stats %}
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 00-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 010 7.75"/>
+                </svg>
+                Team Funnel Comparison
+            </h3>
+        </div>
+        <div class="table-wrapper funnel-table">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Team</th>
+                        <th>Interviews</th>
+                        <th>Screening</th>
+                        <th>1st</th>
+                        <th>2nd</th>
+                        <th>3rd/Tech</th>
+                        <th>Final</th>
+                        <th>Scr→1st</th>
+                        <th>1st→2nd</th>
+                        <th>2nd→3rd</th>
+                        <th>3rd→Fin</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stat in team_stats %}
+                    <tr>
+                        <td>
+                            <span class="rank-badge {% if stat.rank <= 3 %}top-{{ stat.rank }}{% endif %}">
+                                {{ stat.rank }}
+                            </span>
+                        </td>
+                        <td><span class="badge badge-info">{{ stat.team }}</span></td>
+                        <td class="text-bold">{{ stat.interview_count }}</td>
+                        <td class="stage-cell screening">{{ stat.screening }}</td>
+                        <td class="stage-cell first">{{ stat.first }}</td>
+                        <td class="stage-cell second">{{ stat.second }}</td>
+                        <td class="stage-cell third">{{ stat.third_tech }}</td>
+                        <td class="stage-cell final">{{ stat.final }}</td>
+                        <td class="conversion-cell {% if stat.screening_to_1st >= 50 %}good{% elif stat.screening_to_1st >= 25 %}medium{% else %}low{% endif %}">
+                            {{ stat.screening_to_1st }}%
+                        </td>
+                        <td class="conversion-cell {% if stat.first_to_2nd >= 50 %}good{% elif stat.first_to_2nd >= 25 %}medium{% else %}low{% endif %}">
+                            {{ stat.first_to_2nd }}%
+                        </td>
+                        <td class="conversion-cell {% if stat.second_to_3rd >= 50 %}good{% elif stat.second_to_3rd >= 25 %}medium{% else %}low{% endif %}">
+                            {{ stat.second_to_3rd }}%
+                        </td>
+                        <td class="conversion-cell {% if stat.third_to_final >= 50 %}good{% elif stat.third_to_final >= 25 %}medium{% else %}low{% endif %}">
+                            {{ stat.third_to_final }}%
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Top Experts -->
+    {% if expert_stats %}
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <circle cx="12" cy="8" r="4"/>
+                    <path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+                </svg>
+                Top 20 Experts by Conversion
+            </h3>
+            <a href="{{ url_for('analytics.expert_analytics', start_date=start_date, end_date=end_date, team=selected_team) }}" class="btn btn-ghost btn-sm">
+                View All
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                    <polyline points="9,18 15,12 9,6"/>
+                </svg>
+            </a>
+        </div>
+        <div class="table-wrapper funnel-table">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Team</th>
+                        <th>Expert</th>
+                        <th>Interviews</th>
+                        <th>Screening</th>
+                        <th>1st</th>
+                        <th>2nd</th>
+                        <th>3rd/Tech</th>
+                        <th>Final</th>
+                        <th>Scr→1st</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stat in expert_stats %}
+                    <tr>
+                        <td>
+                            <span class="rank-badge {% if stat.rank <= 3 %}top-{{ stat.rank }}{% endif %}">
+                                {{ stat.rank }}
+                            </span>
+                        </td>
+                        <td><span class="badge badge-subtle">{{ stat.team }}</span></td>
+                        <td>
+                            <div class="expert-cell">
+                                <div class="expert-avatar small">{{ stat.expert[0]|upper }}</div>
+                                <span>{{ stat.expert.split('@')[0] }}</span>
+                            </div>
+                        </td>
+                        <td class="text-bold">{{ stat.interview_count }}</td>
+                        <td class="stage-cell screening">{{ stat.screening }}</td>
+                        <td class="stage-cell first">{{ stat.first }}</td>
+                        <td class="stage-cell second">{{ stat.second }}</td>
+                        <td class="stage-cell third">{{ stat.third_tech }}</td>
+                        <td class="stage-cell final">{{ stat.final }}</td>
+                        <td class="conversion-cell {% if stat.screening_to_1st >= 50 %}good{% elif stat.screening_to_1st >= 25 %}medium{% else %}low{% endif %}">
+                            {{ stat.screening_to_1st }}%
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Funnel Bar Chart
+const funnelCtx = document.getElementById('funnelBarChart').getContext('2d');
+new Chart(funnelCtx, {
+    type: 'bar',
+    data: {
+        labels: ['Screening', '1st Round', '2nd Round', '3rd/Technical', 'Final'],
+        datasets: [{
+            data: [{{ funnel_totals.screening }}, {{ funnel_totals.first }}, {{ funnel_totals.second }}, {{ funnel_totals.third_tech }}, {{ funnel_totals.final }}],
+            backgroundColor: ['#3b82f6', '#8b5cf6', '#f97316', '#14b8a6', '#22c55e'],
+            borderRadius: 8,
+            borderSkipped: false
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { grid: { display: false }, ticks: { font: { family: 'Plus Jakarta Sans', size: 11 } } },
+            y: { grid: { color: '#f1f5f9' }, ticks: { font: { family: 'Plus Jakarta Sans', size: 11 } } }
+        }
+    }
+});
+
+// Conversion Rate Chart
+const convCtx = document.getElementById('conversionChart').getContext('2d');
+new Chart(convCtx, {
+    type: 'line',
+    data: {
+        labels: ['Scr→1st', '1st→2nd', '2nd→3rd', '3rd→Final'],
+        datasets: [{
+            label: 'Conversion Rate',
+            data: [{{ funnel_totals.screening_to_1st }}, {{ funnel_totals.first_to_2nd }}, {{ funnel_totals.second_to_3rd }}, {{ funnel_totals.third_to_final }}],
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            fill: true,
+            tension: 0.4,
+            pointBackgroundColor: '#3b82f6',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointRadius: 6
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false }
+        },
+        scales: {
+            x: { grid: { display: false }, ticks: { font: { family: 'Plus Jakarta Sans', size: 11 } } },
+            y: {
+                grid: { color: '#f1f5f9' },
+                ticks: {
+                    font: { family: 'Plus Jakarta Sans', size: 11 },
+                    callback: function(value) { return value + '%'; }
+                },
+                min: 0,
+                max: 100
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

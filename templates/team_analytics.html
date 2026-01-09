@@ -1,0 +1,479 @@
+{% extends "base.html" %}
+
+{% block page_title %}Team Analytics - InterviewOS{% endblock %}
+{% block title %}Team Analytics{% endblock %}
+
+{% block content %}
+<div class="analytics-page">
+    <!-- Filters Section -->
+    <div class="filters-card card">
+        <form method="GET" action="{{ url_for('analytics.team_analytics') }}" class="filters-form">
+            <!-- Preserve date params from global filter -->
+            <input type="hidden" name="start_date" value="{{ start_date }}">
+            <input type="hidden" name="end_date" value="{{ end_date }}">
+            <div class="filters-row">
+                <div class="filter-item">
+                    <label>
+                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+                            <circle cx="9" cy="7" r="4"/>
+                            <path d="M23 21v-2a4 4 0 00-3-3.87"/>
+                            <path d="M16 3.13a4 4 0 010 7.75"/>
+                        </svg>
+                        Team
+                    </label>
+                    <select name="team" class="select-single">
+                        <option value="">All Teams</option>
+                        {% for team in teams %}
+                        <option value="{{ team }}" {% if selected_team == team %}selected{% endif %}>{{ team }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-actions">
+                    <button type="submit" class="btn btn-primary">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46"/>
+                        </svg>
+                        Apply
+                    </button>
+                    <a href="{{ url_for('analytics.team_analytics', start_date=start_date, end_date=end_date) }}" class="btn btn-ghost">Reset</a>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="stats-row">
+        <div class="stat-card">
+            <div class="stat-icon purple">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 00-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 010 7.75"/>
+                </svg>
+            </div>
+            <div class="stat-content">
+                <span class="stat-label">Total Teams</span>
+                <span class="stat-value">{{ total_teams }}</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon blue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 4h18l-6 8v6l-6 2V12L3 4z"/>
+                </svg>
+            </div>
+            <div class="stat-content">
+                <span class="stat-label">Total Screening</span>
+                <span class="stat-value">{{ team_stats|sum(attribute='screening') }}</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon teal">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="7" height="7"/>
+                    <rect x="14" y="3" width="7" height="7"/>
+                    <rect x="14" y="14" width="7" height="7"/>
+                    <rect x="3" y="14" width="7" height="7"/>
+                </svg>
+            </div>
+            <div class="stat-content">
+                <span class="stat-label">Total Interviews</span>
+                <span class="stat-value">{{ team_stats|sum(attribute='interview_count') }}</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon green">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+                    <polyline points="22,4 12,14.01 9,11.01"/>
+                </svg>
+            </div>
+            <div class="stat-content">
+                <span class="stat-label">Total Final</span>
+                <span class="stat-value">{{ team_stats|sum(attribute='final') }}</span>
+            </div>
+        </div>
+    </div>
+
+    {% if team_detail %}
+    <!-- Team Detail View -->
+    <div class="detail-section">
+        <div class="detail-header card">
+            <div class="detail-profile">
+                <div class="profile-icon large">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <path d="M23 21v-2a4 4 0 00-3-3.87"/>
+                        <path d="M16 3.13a4 4 0 010 7.75"/>
+                    </svg>
+                </div>
+                <div class="profile-info">
+                    <h2 class="profile-name">{{ team_detail.team }}</h2>
+                    <div class="profile-meta">
+                        <span class="badge badge-info">{{ team_detail.member_count }} members</span>
+                        <span class="badge badge-subtle">Rank #{{ team_detail.rank }}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="profile-stats">
+                <div class="profile-stat">
+                    <span class="profile-stat-value">{{ team_detail.interview_count }}</span>
+                    <span class="profile-stat-label">Interviews</span>
+                </div>
+                <div class="profile-stat">
+                    <span class="profile-stat-value text-blue">{{ team_detail.screening }}</span>
+                    <span class="profile-stat-label">Screening</span>
+                </div>
+                <div class="profile-stat">
+                    <span class="profile-stat-value text-green">{{ team_detail.final }}</span>
+                    <span class="profile-stat-label">Final</span>
+                </div>
+                <div class="profile-stat">
+                    <span class="profile-stat-value text-purple">{{ team_detail.screening_to_1st }}%</span>
+                    <span class="profile-stat-label">Conversion</span>
+                </div>
+            </div>
+            <a href="{{ url_for('analytics.team_analytics', start_date=start_date, end_date=end_date, team=selected_team) }}" class="btn btn-ghost">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+                Close
+            </a>
+        </div>
+
+        <!-- Team Funnel Pipeline -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M3 4h18l-6 8v6l-6 2V12L3 4z"/>
+                    </svg>
+                    Team Interview Funnel
+                </h3>
+            </div>
+            <div class="funnel-pipeline">
+                <div class="pipeline-stage">
+                    <div class="stage-bar screening" style="height: 100%">
+                        <span class="stage-count">{{ team_detail.screening }}</span>
+                    </div>
+                    <span class="stage-label">Screening</span>
+                </div>
+                <div class="pipeline-arrow">
+                    <span class="conversion-rate">{{ team_detail.screening_to_1st }}%</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </div>
+                <div class="pipeline-stage">
+                    {% set h1 = (team_detail.first / team_detail.screening * 100) if team_detail.screening > 0 else 20 %}
+                    <div class="stage-bar first" style="height: {{ [h1, 20]|max }}%">
+                        <span class="stage-count">{{ team_detail.first }}</span>
+                    </div>
+                    <span class="stage-label">1st Round</span>
+                </div>
+                <div class="pipeline-arrow">
+                    <span class="conversion-rate">{{ team_detail.first_to_2nd }}%</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </div>
+                <div class="pipeline-stage">
+                    {% set h2 = (team_detail.second / team_detail.screening * 100) if team_detail.screening > 0 else 15 %}
+                    <div class="stage-bar second" style="height: {{ [h2, 20]|max }}%">
+                        <span class="stage-count">{{ team_detail.second }}</span>
+                    </div>
+                    <span class="stage-label">2nd Round</span>
+                </div>
+                <div class="pipeline-arrow">
+                    <span class="conversion-rate">{{ team_detail.second_to_3rd }}%</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </div>
+                <div class="pipeline-stage">
+                    {% set h3 = (team_detail.third_tech / team_detail.screening * 100) if team_detail.screening > 0 else 10 %}
+                    <div class="stage-bar third" style="height: {{ [h3, 20]|max }}%">
+                        <span class="stage-count">{{ team_detail.third_tech }}</span>
+                    </div>
+                    <span class="stage-label">3rd/Technical</span>
+                </div>
+                <div class="pipeline-arrow">
+                    <span class="conversion-rate">{{ team_detail.third_to_final }}%</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </div>
+                <div class="pipeline-stage">
+                    {% set hf = (team_detail.final / team_detail.screening * 100) if team_detail.screening > 0 else 5 %}
+                    <div class="stage-bar final" style="height: {{ [hf, 20]|max }}%">
+                        <span class="stage-count">{{ team_detail.final }}</span>
+                    </div>
+                    <span class="stage-label">Final</span>
+                </div>
+            </div>
+        </div>
+
+        {% if member_stats %}
+        <!-- Member Breakdown -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <circle cx="12" cy="8" r="4"/>
+                        <path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+                    </svg>
+                    Member Performance
+                </h3>
+            </div>
+            <div class="table-wrapper funnel-table">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Expert</th>
+                            <th>Interviews</th>
+                            <th>Screening</th>
+                            <th>1st</th>
+                            <th>2nd</th>
+                            <th>3rd/Tech</th>
+                            <th>Final</th>
+                            <th>Scr→1st</th>
+                            <th>1st→2nd</th>
+                            <th>2nd→3rd</th>
+                            <th>3rd→Fin</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for stat in member_stats %}
+                        <tr>
+                            <td>
+                                <span class="rank-badge {% if stat.rank <= 3 %}top-{{ stat.rank }}{% endif %}">
+                                    {{ stat.rank }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="expert-cell">
+                                    <div class="expert-avatar small">{{ stat.expert[0]|upper }}</div>
+                                    <span>{{ stat.expert.split('@')[0] }}</span>
+                                </div>
+                            </td>
+                            <td class="text-bold">{{ stat.interview_count }}</td>
+                            <td class="stage-cell screening">{{ stat.screening }}</td>
+                            <td class="stage-cell first">{{ stat.first }}</td>
+                            <td class="stage-cell second">{{ stat.second }}</td>
+                            <td class="stage-cell third">{{ stat.third_tech }}</td>
+                            <td class="stage-cell final">{{ stat.final }}</td>
+                            <td class="conversion-cell {% if stat.screening_to_1st >= 50 %}good{% elif stat.screening_to_1st >= 25 %}medium{% else %}low{% endif %}">
+                                {{ stat.screening_to_1st }}%
+                            </td>
+                            <td class="conversion-cell {% if stat.first_to_2nd >= 50 %}good{% elif stat.first_to_2nd >= 25 %}medium{% else %}low{% endif %}">
+                                {{ stat.first_to_2nd }}%
+                            </td>
+                            <td class="conversion-cell {% if stat.second_to_3rd >= 50 %}good{% elif stat.second_to_3rd >= 25 %}medium{% else %}low{% endif %}">
+                                {{ stat.second_to_3rd }}%
+                            </td>
+                            <td class="conversion-cell {% if stat.third_to_final >= 50 %}good{% elif stat.third_to_final >= 25 %}medium{% else %}low{% endif %}">
+                                {{ stat.third_to_final }}%
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Member Chart -->
+        <div class="chart-card card">
+            <div class="card-header">
+                <h3 class="card-title">Member Funnel Comparison</h3>
+            </div>
+            <div class="chart-container tall">
+                <canvas id="memberChart"></canvas>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    {% else %}
+    <!-- Team Funnel Leaderboard -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 00-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 010 7.75"/>
+                </svg>
+                Team Funnel Leaderboard
+            </h3>
+            <span class="badge badge-subtle">{{ team_stats|length }} teams</span>
+        </div>
+
+        {% if team_stats %}
+        <div class="table-wrapper funnel-table">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Team</th>
+                        <th>Members</th>
+                        <th>Interviews</th>
+                        <th>Screening</th>
+                        <th>1st</th>
+                        <th>2nd</th>
+                        <th>3rd/Tech</th>
+                        <th>Final</th>
+                        <th>Scr→1st</th>
+                        <th>1st→2nd</th>
+                        <th>2nd→3rd</th>
+                        <th>3rd→Fin</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stat in team_stats %}
+                    <tr>
+                        <td>
+                            <span class="rank-badge {% if stat.rank <= 3 %}top-{{ stat.rank }}{% endif %}">
+                                {{ stat.rank }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="team-cell">
+                                <div class="team-icon small">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+                                        <circle cx="9" cy="7" r="4"/>
+                                        <path d="M23 21v-2a4 4 0 00-3-3.87"/>
+                                        <path d="M16 3.13a4 4 0 010 7.75"/>
+                                    </svg>
+                                </div>
+                                <span>{{ stat.team }}</span>
+                            </div>
+                        </td>
+                        <td><span class="badge badge-subtle">{{ stat.member_count }}</span></td>
+                        <td class="text-bold">{{ stat.interview_count }}</td>
+                        <td class="stage-cell screening">{{ stat.screening }}</td>
+                        <td class="stage-cell first">{{ stat.first }}</td>
+                        <td class="stage-cell second">{{ stat.second }}</td>
+                        <td class="stage-cell third">{{ stat.third_tech }}</td>
+                        <td class="stage-cell final">{{ stat.final }}</td>
+                        <td class="conversion-cell {% if stat.screening_to_1st >= 50 %}good{% elif stat.screening_to_1st >= 25 %}medium{% else %}low{% endif %}">
+                            {{ stat.screening_to_1st }}%
+                        </td>
+                        <td class="conversion-cell {% if stat.first_to_2nd >= 50 %}good{% elif stat.first_to_2nd >= 25 %}medium{% else %}low{% endif %}">
+                            {{ stat.first_to_2nd }}%
+                        </td>
+                        <td class="conversion-cell {% if stat.second_to_3rd >= 50 %}good{% elif stat.second_to_3rd >= 25 %}medium{% else %}low{% endif %}">
+                            {{ stat.second_to_3rd }}%
+                        </td>
+                        <td class="conversion-cell {% if stat.third_to_final >= 50 %}good{% elif stat.third_to_final >= 25 %}medium{% else %}low{% endif %}">
+                            {{ stat.third_to_final }}%
+                        </td>
+                        <td>
+                            <a href="{{ url_for('analytics.team_analytics', view_team=stat.team, start_date=start_date, end_date=end_date, team=selected_team) }}" class="btn btn-ghost btn-sm">
+                                View
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                    <polyline points="9,18 15,12 9,6"/>
+                                </svg>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <p>No team data found for the selected filters</p>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if team_stats %}
+    <!-- Team Performance Chart -->
+    <div class="chart-card card">
+        <div class="card-header">
+            <h3 class="card-title">Team Funnel Comparison</h3>
+        </div>
+        <div class="chart-container tall">
+            <canvas id="teamChart"></canvas>
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+{% if team_detail and member_stats %}
+// Member Chart
+const memberCtx = document.getElementById('memberChart').getContext('2d');
+const memberStats = {{ member_stats|tojson }};
+new Chart(memberCtx, {
+    type: 'bar',
+    data: {
+        labels: memberStats.map(m => m.expert.split('@')[0]),
+        datasets: [
+            { label: 'Screening', data: memberStats.map(m => m.screening), backgroundColor: '#3b82f6', borderRadius: 4 },
+            { label: '1st Round', data: memberStats.map(m => m.first), backgroundColor: '#8b5cf6', borderRadius: 4 },
+            { label: '2nd Round', data: memberStats.map(m => m.second), backgroundColor: '#f97316', borderRadius: 4 },
+            { label: '3rd/Technical', data: memberStats.map(m => m.third_tech), backgroundColor: '#14b8a6', borderRadius: 4 },
+            { label: 'Final', data: memberStats.map(m => m.final), backgroundColor: '#22c55e', borderRadius: 4 }
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { position: 'bottom', labels: { padding: 20, usePointStyle: true, font: { family: 'Plus Jakarta Sans', size: 12 } } }
+        },
+        scales: {
+            x: { stacked: false, grid: { display: false }, ticks: { font: { family: 'Plus Jakarta Sans', size: 11 } } },
+            y: { stacked: false, grid: { color: '#f1f5f9' }, ticks: { font: { family: 'Plus Jakarta Sans', size: 11 } } }
+        }
+    }
+});
+
+{% elif team_stats %}
+// Team Chart
+const teamCtx = document.getElementById('teamChart').getContext('2d');
+const teamStats = {{ team_stats|tojson }};
+new Chart(teamCtx, {
+    type: 'bar',
+    data: {
+        labels: teamStats.map(t => t.team),
+        datasets: [
+            { label: 'Screening', data: teamStats.map(t => t.screening), backgroundColor: '#3b82f6', borderRadius: 4 },
+            { label: '1st Round', data: teamStats.map(t => t.first), backgroundColor: '#8b5cf6', borderRadius: 4 },
+            { label: '2nd Round', data: teamStats.map(t => t.second), backgroundColor: '#f97316', borderRadius: 4 },
+            { label: '3rd/Technical', data: teamStats.map(t => t.third_tech), backgroundColor: '#14b8a6', borderRadius: 4 },
+            { label: 'Final', data: teamStats.map(t => t.final), backgroundColor: '#22c55e', borderRadius: 4 }
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { position: 'bottom', labels: { padding: 20, usePointStyle: true, font: { family: 'Plus Jakarta Sans', size: 12 } } }
+        },
+        scales: {
+            x: { stacked: false, grid: { display: false }, ticks: { font: { family: 'Plus Jakarta Sans', size: 11 } } },
+            y: { stacked: false, grid: { color: '#f1f5f9' }, ticks: { font: { family: 'Plus Jakarta Sans', size: 11 } } }
+        }
+    }
+});
+{% endif %}
+</script>
+{% endblock %}

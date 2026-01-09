@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block page_title %}Candidate Lookup - InterviewOS{% endblock %}
+{% block title %}Candidate Lookup{% endblock %}
+
+{% block content %}
+<div class="search-layout">
+    <!-- Search Header -->
+    <div class="search-header card">
+        <div class="search-intro">
+            <div class="search-icon-wrapper">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="m21 21-4.35-4.35"/>
+                </svg>
+            </div>
+            <div class="search-info">
+                <h2>Find Candidate Profile</h2>
+                <p>Search for candidates by name to view their complete profile and interview history.</p>
+            </div>
+        </div>
+
+        <form class="search-form-main" action="{{ url_for('candidates.search') }}" method="GET">
+            <div class="search-input-wrapper">
+                <svg class="search-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="m21 21-4.35-4.35"/>
+                </svg>
+                <input type="text" name="q" value="{{ query }}" placeholder="Enter candidate name (e.g. John Smith)" class="search-input">
+                <button type="submit" class="btn btn-primary">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <circle cx="11" cy="11" r="8"/>
+                        <path d="m21 21-4.35-4.35"/>
+                    </svg>
+                    Search
+                </button>
+            </div>
+        </form>
+    </div>
+
+    {% if query %}
+    <!-- Search Results -->
+    <div class="search-results">
+        {% if results %}
+        <div class="results-header">
+            <div class="results-info">
+                <span class="results-count badge badge-info">{{ results|length }} results</span>
+                <span class="results-query">for "{{ query }}"</span>
+            </div>
+        </div>
+
+        <div class="results-grid">
+            {% for r in results %}
+            <div class="candidate-card card">
+                <div class="candidate-header">
+                    <div class="candidate-avatar-lg">{{ r.get('Candidate Name', 'N')[0]|upper }}</div>
+                    <div class="candidate-main-info">
+                        <h3 class="candidate-name-lg">{{ r.get('Candidate Name', 'N/A') }}</h3>
+                        <span class="candidate-tech badge badge-tech">{{ r.get('Technology', '-') }}</span>
+                    </div>
+                </div>
+
+                <div class="candidate-details">
+                    <div class="detail-row">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                            <polyline points="22,6 12,13 2,6"/>
+                        </svg>
+                        <span>{{ r.get('Email ID', '-') }}</span>
+                    </div>
+                    <div class="detail-row">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/>
+                        </svg>
+                        <span>{{ r.get('Contact No', '-') }}</span>
+                    </div>
+                    <div class="detail-row">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <circle cx="12" cy="8" r="4"/>
+                            <path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+                        </svg>
+                        <span>{{ r.get('Expert', '-') }}</span>
+                    </div>
+                    <div class="detail-row">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/>
+                            <circle cx="9" cy="7" r="4"/>
+                            <path d="M22 21v-2a4 4 0 00-3-3.87"/>
+                            <path d="M16 3.13a4 4 0 010 7.75"/>
+                        </svg>
+                        <span>{{ r.get('Recruiter', '-') }}</span>
+                    </div>
+                </div>
+
+                <div class="candidate-footer">
+                    <span class="status-pill status-{{ r.get('workflowStatus', 'unknown')|lower }}">
+                        {{ r.get('workflowStatus', 'Unknown') }}
+                    </span>
+                    {% if r.get('Branch') %}
+                    <span class="badge badge-subtle">{{ r.get('Branch') }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% else %}
+        <!-- No Results -->
+        <div class="no-results card">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="11" cy="11" r="8"/>
+                <path d="m21 21-4.35-4.35"/>
+                <line x1="8" y1="11" x2="14" y2="11"/>
+            </svg>
+            <h3>No results found</h3>
+            <p>No candidates matching "{{ query }}" were found. Try a different search term.</p>
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    <!-- Search Suggestions -->
+    <div class="search-suggestions">
+        <h3>Search Tips</h3>
+        <div class="suggestions-grid">
+            <div class="suggestion-card card">
+                <div class="suggestion-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <circle cx="12" cy="8" r="4"/>
+                        <path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+                    </svg>
+                </div>
+                <h4>Search by name</h4>
+                <p>Enter the candidate's first or last name to find their profile.</p>
+            </div>
+            <div class="suggestion-card card">
+                <div class="suggestion-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+                        <circle cx="12" cy="7" r="4"/>
+                    </svg>
+                </div>
+                <h4>Partial matches</h4>
+                <p>You don't need the full name - partial matches will be shown.</p>
+            </div>
+            <div class="suggestion-card card">
+                <div class="suggestion-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46"/>
+                    </svg>
+                </div>
+                <h4>Use filters</h4>
+                <p>For more options, use the Dashboard with advanced filters.</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
