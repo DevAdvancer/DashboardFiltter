@@ -11,9 +11,16 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
-    <div class="app-layout">
+    <div class="app-layout" id="app-layout">
         <!-- Sidebar Navigation -->
         <aside class="sidebar">
+            <!-- Toggle Button -->
+            <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle Sidebar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="15,18 9,12 15,6"/>
+                </svg>
+            </button>
+
             <div class="sidebar-header">
                 <div class="logo">
                     <div class="logo-icon">
@@ -63,6 +70,23 @@
 
                 <div class="nav-section">
                     <span class="nav-section-title">Management</span>
+                    <a href="{{ url_for('analytics.interview_stats') }}" class="nav-link {% if request.endpoint == 'analytics.interview_stats' %}active{% endif %}">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <line x1="18" y1="20" x2="18" y2="10"/>
+                            <line x1="12" y1="20" x2="12" y2="4"/>
+                            <line x1="6" y1="20" x2="6" y2="14"/>
+                        </svg>
+                        <span>Interview Stats</span>
+                    </a>
+                    <a href="{{ url_for('analytics.interview_records') }}" class="nav-link {% if request.endpoint == 'analytics.interview_records' %}active{% endif %}">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                            <polyline points="14,2 14,8 20,8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                        </svg>
+                        <span>Interview Records</span>
+                    </a>
                     <a href="{{ url_for('candidates.search') }}" class="nav-link {% if request.endpoint == 'candidates.search' %}active{% endif %}">
                         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                             <circle cx="11" cy="11" r="7"/>
@@ -103,44 +127,10 @@
 
         <!-- Main Content Area -->
         <div class="main-wrapper">
-            <!-- Top Bar with Global Date Filter -->
+            <!-- Top Bar -->
             <header class="topbar">
                 <div class="topbar-left">
                     <h1 class="page-title">{% block title %}Dashboard{% endblock %}</h1>
-                </div>
-
-                <div class="topbar-center">
-                    <!-- Universal Date Filter -->
-                    <form id="global-date-filter" class="date-filter-form" method="GET">
-                        <div class="filter-group">
-                            <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <rect x="3" y="4" width="18" height="18" rx="2"/>
-                                <line x1="16" y1="2" x2="16" y2="6"/>
-                                <line x1="8" y1="2" x2="8" y2="6"/>
-                                <line x1="3" y1="10" x2="21" y2="10"/>
-                            </svg>
-                            <input type="date" name="start_date" value="{{ start_date or '' }}" class="date-input" placeholder="Start date">
-                            <span class="date-separator">to</span>
-                            <input type="date" name="end_date" value="{{ end_date or '' }}" class="date-input" placeholder="End date">
-                            <button type="submit" class="btn btn-primary btn-sm">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                                    <polyline points="20,6 9,17 4,12"/>
-                                </svg>
-                                Apply
-                            </button>
-                            {% if start_date or end_date %}
-                            <a href="{{ request.path }}" class="btn btn-ghost btn-sm">Clear</a>
-                            {% endif %}
-                        </div>
-                        <!-- Preserve other query params -->
-                        {% for key, values in request.args.lists() %}
-                            {% if key not in ['start_date', 'end_date'] %}
-                                {% for value in values %}
-                                <input type="hidden" name="{{ key }}" value="{{ value }}">
-                                {% endfor %}
-                            {% endif %}
-                        {% endfor %}
-                    </form>
                 </div>
 
                 <div class="topbar-right">
@@ -157,6 +147,133 @@
             </main>
         </div>
     </div>
+
+    <!-- Sidebar Toggle Script -->
+    <script>
+    (function() {
+        const SIDEBAR_KEY = 'interviewos_sidebar_collapsed';
+        const appLayout = document.getElementById('app-layout');
+        const toggleBtn = document.getElementById('sidebar-toggle');
+
+        // Restore sidebar state
+        function restoreSidebarState() {
+            const isCollapsed = localStorage.getItem(SIDEBAR_KEY) === 'true';
+            if (isCollapsed) {
+                appLayout.classList.add('sidebar-collapsed');
+            }
+        }
+
+        // Toggle sidebar
+        function toggleSidebar() {
+            appLayout.classList.toggle('sidebar-collapsed');
+            const isCollapsed = appLayout.classList.contains('sidebar-collapsed');
+            localStorage.setItem(SIDEBAR_KEY, isCollapsed);
+        }
+
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', toggleSidebar);
+        }
+
+        restoreSidebarState();
+    })();
+    </script>
+
+    <!-- Date Filter Persistence Script -->
+    <script>
+    (function() {
+        // Get page identifier from current path
+        const pagePath = window.location.pathname;
+        const STORAGE_KEY = 'interviewos_dates_' + pagePath.replace(/\//g, '_');
+
+        // Find date inputs on the page
+        const startDateInput = document.querySelector('input[name="start_date"]');
+        const endDateInput = document.querySelector('input[name="end_date"]');
+
+        // If no date inputs exist on this page, exit
+        if (!startDateInput && !endDateInput) return;
+
+        // Get stored dates for this page
+        function getStoredDates() {
+            try {
+                const stored = localStorage.getItem(STORAGE_KEY);
+                return stored ? JSON.parse(stored) : { start_date: '', end_date: '' };
+            } catch (e) {
+                return { start_date: '', end_date: '' };
+            }
+        }
+
+        // Save dates to localStorage
+        function saveDates() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                    start_date: startDateInput ? startDateInput.value : '',
+                    end_date: endDateInput ? endDateInput.value : ''
+                }));
+            } catch (e) {
+                console.warn('Could not save date filter to localStorage');
+            }
+        }
+
+        // Clear stored dates for this page
+        function clearStoredDates() {
+            try {
+                localStorage.removeItem(STORAGE_KEY);
+            } catch (e) {}
+        }
+
+        // Check if URL has date params
+        function hasUrlDates() {
+            const params = new URLSearchParams(window.location.search);
+            return params.has('start_date') || params.has('end_date');
+        }
+
+        // Restore dates on page load
+        function restoreDates() {
+            // If URL already has dates, save them and use them
+            if (hasUrlDates()) {
+                saveDates();
+                return;
+            }
+
+            // Otherwise, restore from localStorage
+            const stored = getStoredDates();
+            if (startDateInput && stored.start_date && !startDateInput.value) {
+                startDateInput.value = stored.start_date;
+            }
+            if (endDateInput && stored.end_date && !endDateInput.value) {
+                endDateInput.value = stored.end_date;
+            }
+        }
+
+        // Handle form submission - save dates
+        const form = startDateInput ? startDateInput.closest('form') : (endDateInput ? endDateInput.closest('form') : null);
+        if (form) {
+            form.addEventListener('submit', function() {
+                saveDates();
+            });
+        }
+
+        // Handle Reset button - clear stored dates
+        const resetBtn = document.querySelector('a.btn-ghost[href*="' + pagePath + '"]');
+        if (resetBtn && resetBtn.textContent.trim() === 'Reset') {
+            resetBtn.addEventListener('click', function() {
+                clearStoredDates();
+            });
+        }
+
+        // Also handle any Reset link that clears filters
+        document.querySelectorAll('a.btn-ghost').forEach(function(btn) {
+            if (btn.textContent.trim() === 'Reset') {
+                btn.addEventListener('click', function() {
+                    clearStoredDates();
+                });
+            }
+        });
+
+        // Initialize
+        restoreDates();
+    })();
+    </script>
 
     {% block scripts %}{% endblock %}
 </body>
