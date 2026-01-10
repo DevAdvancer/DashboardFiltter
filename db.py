@@ -1,5 +1,6 @@
 import os
 import sys
+import certifi
 from pymongo import MongoClient
 
 # MongoDB connection settings from environment variables
@@ -42,11 +43,16 @@ def get_client():
     if _client is None:
         _client = MongoClient(
             MONGO_URI,
-            serverSelectionTimeoutMS=5000,
-            connectTimeoutMS=10000,
-            socketTimeoutMS=10000,
-            maxPoolSize=10,
-            retryWrites=True
+            tls=True,
+            tlsCAFile=certifi.where(),
+            tlsAllowInvalidCertificates=False,
+            serverSelectionTimeoutMS=30000,
+            connectTimeoutMS=30000,
+            socketTimeoutMS=30000,
+            maxPoolSize=1,
+            minPoolSize=0,
+            retryWrites=True,
+            retryReads=True
         )
     return _client
 
@@ -56,11 +62,16 @@ def get_teams_client():
     if _teams_client is None:
         _teams_client = MongoClient(
             TEAMS_MONGO_URI,
-            serverSelectionTimeoutMS=5000,
-            connectTimeoutMS=10000,
-            socketTimeoutMS=10000,
-            maxPoolSize=10,
-            retryWrites=True
+            tls=True,
+            tlsCAFile=certifi.where(),
+            tlsAllowInvalidCertificates=False,
+            serverSelectionTimeoutMS=30000,
+            connectTimeoutMS=30000,
+            socketTimeoutMS=30000,
+            maxPoolSize=1,
+            minPoolSize=0,
+            retryWrites=True,
+            retryReads=True
         )
     return _teams_client
 

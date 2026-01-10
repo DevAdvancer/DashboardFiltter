@@ -22,19 +22,26 @@ app.register_blueprint(analytics_bp, url_prefix='/analytics')
 @app.route('/health')
 def health_check():
     """Health check endpoint for monitoring."""
+    import sys
     try:
         from db import get_db
         db = get_db()
         # Quick ping to verify DB connection
-        db.command('ping')
+        result = db.command('ping')
         return jsonify({
             "status": "healthy",
-            "database": "connected"
+            "database": "connected",
+            "python_version": sys.version,
+            "ping_response": result
         }), 200
     except Exception as e:
+        import traceback
         return jsonify({
             "status": "unhealthy",
-            "error": str(e)
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "traceback": traceback.format_exc(),
+            "python_version": sys.version
         }), 500
 
 # Error handlers
