@@ -1,6 +1,6 @@
 
 from flask import Blueprint, render_template, request
-from db import get_db
+from db import get_db, get_teams_db
 from datetime import datetime
 from collections import Counter
 
@@ -49,8 +49,9 @@ def index():
         for e in top_experts_data
     ]
 
-    # 4. Top Teams by Interview Count
-    teams_cursor = db.teams.find({})
+    # 4. Top Teams by Interview Count (from teams database)
+    teams_db = get_teams_db()
+    teams_cursor = teams_db.teams.find({})
     teams_map = {t["name"]: t["members"] for t in teams_cursor}
 
     team_interview_counts = {}

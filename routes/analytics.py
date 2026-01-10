@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, request, jsonify
-from db import get_db
+from db import get_db, get_teams_db
 from datetime import datetime
 from collections import Counter, defaultdict
 
@@ -46,9 +46,10 @@ def get_date_filter_strings():
     return start_date, end_date
 
 
-def get_expert_team_map(db):
-    """Build expert -> team mapping."""
-    teams_cursor = db.teams.find({})
+def get_expert_team_map(db=None):
+    """Build expert -> team mapping from teams database."""
+    teams_db = get_teams_db()
+    teams_cursor = teams_db.teams.find({})
     teams_map = {t['name']: t.get('members', []) for t in teams_cursor}
 
     expert_team_map = {}

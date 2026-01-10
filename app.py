@@ -1,13 +1,14 @@
 import os
 from dotenv import load_dotenv
+
+# Load environment variables from .env file BEFORE importing anything else
+load_dotenv()
+
 from flask import Flask, render_template
 from routes.dashboard import dashboard_bp
 from routes.teams import teams_bp
 from routes.candidates import candidates_bp
 from routes.analytics import analytics_bp
-
-# Load environment variables from .env file
-load_dotenv()
 
 app = Flask(__name__)
 
