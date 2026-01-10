@@ -1,0 +1,12 @@
+__pycache__
+*.pyc
+*.pyo
+.env
+.git
+.gitignore
+*.md
+db_migration.py
+total_interview_count.py
+.venv
+venv
+env
