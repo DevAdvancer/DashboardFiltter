@@ -4,35 +4,164 @@
 {% block title %}Export Center{% endblock %}
 
 {% block content %}
-<div class="export-layout">
-    <div class="export-intro card">
-        <div class="intro-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                <polyline points="7,10 12,15 17,10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-        </div>
-        <div class="intro-content">
-            <h2>Export Candidate Data</h2>
-            <p>Download candidate information based on your filter criteria. Select the filters below and export the data in JSON format.</p>
+<div class="export-center-layout">
+    <!-- Header Section -->
+    <div class="export-header card">
+        <div class="export-header-content">
+            <div class="export-header-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                    <polyline points="7,10 12,15 17,10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+            </div>
+            <div class="export-header-text">
+                <h2>Export Center</h2>
+                <p>Download and export your interview data in multiple formats with customizable filters</p>
+            </div>
         </div>
     </div>
 
-    <form action="{{ url_for('analytics.export_download') }}" method="POST" class="export-form card" id="exportForm">
+    <!-- Quick Export Templates -->
+    <div class="export-templates-section">
+        <h3 class="section-title">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <polyline points="13,17 18,12 13,7"/>
+                <polyline points="6,17 11,12 6,7"/>
+            </svg>
+            Quick Export Templates
+        </h3>
+        <div class="export-templates-grid">
+            <div class="export-template-card card" onclick="quickExport('all_candidates')">
+                <div class="template-icon blue">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <path d="M23 21v-2a4 4 0 00-3-3.87"/>
+                        <path d="M16 3.13a4 4 0 010 7.75"/>
+                    </svg>
+                </div>
+                <div class="template-content">
+                    <h4>All Candidates</h4>
+                    <p>Complete candidate database</p>
+                    <span class="template-badge">Full Export</span>
+                </div>
+            </div>
+
+            <div class="export-template-card card" onclick="quickExport('active_pipeline')">
+                <div class="template-icon green">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/>
+                    </svg>
+                </div>
+                <div class="template-content">
+                    <h4>Active Pipeline</h4>
+                    <p>Currently active candidates</p>
+                    <span class="template-badge">Filtered</span>
+                </div>
+            </div>
+
+            <div class="export-template-card card" onclick="quickExport('completed_interviews')">
+                <div class="template-icon purple">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+                        <polyline points="22,4 12,14.01 9,11.01"/>
+                    </svg>
+                </div>
+                <div class="template-content">
+                    <h4>Completed Interviews</h4>
+                    <p>All completed interview records</p>
+                    <span class="template-badge">Interview Data</span>
+                </div>
+            </div>
+
+            <div class="export-template-card card" onclick="quickExport('analytics_summary')">
+                <div class="template-icon orange">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="20" x2="18" y2="10"/>
+                        <line x1="12" y1="20" x2="12" y2="4"/>
+                        <line x1="6" y1="20" x2="6" y2="14"/>
+                    </svg>
+                </div>
+                <div class="template-content">
+                    <h4>Analytics Summary</h4>
+                    <p>Aggregated statistics report</p>
+                    <span class="template-badge">Report</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Export Builder -->
+    <div class="export-builder-section card">
         <div class="card-header">
             <h3 class="card-title">
                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46"/>
+                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
                 </svg>
-                Export Filters
+                Custom Export Builder
             </h3>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="resetFilters()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                    <polyline points="1,4 1,10 7,10"/>
+                    <polyline points="23,20 23,14 17,14"/>
+                    <path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/>
+                </svg>
+                Reset
+            </button>
         </div>
 
-        <div class="export-filters">
-            <div class="filter-row">
-                <div class="filter-field">
-                    <label>
+        <form id="customExportForm" class="export-builder-form">
+            <!-- Format Selection -->
+            <div class="export-format-section">
+                <label class="section-label">
+                    <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                        <polyline points="14,2 14,8 20,8"/>
+                    </svg>
+                    Export Format
+                </label>
+                <div class="format-options">
+                    <label class="format-option">
+                        <input type="radio" name="format" value="json" checked>
+                        <div class="format-option-card">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                                <polyline points="14,2 14,8 20,8"/>
+                            </svg>
+                            <span>JSON</span>
+                        </div>
+                    </label>
+                    <label class="format-option">
+                        <input type="radio" name="format" value="csv">
+                        <div class="format-option-card">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                                <polyline points="14,2 14,8 20,8"/>
+                                <line x1="16" y1="13" x2="8" y2="13"/>
+                                <line x1="16" y1="17" x2="8" y2="17"/>
+                            </svg>
+                            <span>CSV</span>
+                        </div>
+                    </label>
+                    <label class="format-option">
+                        <input type="radio" name="format" value="excel">
+                        <div class="format-option-card">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                                <polyline points="14,2 14,8 20,8"/>
+                                <rect x="8" y="12" width="8" height="7"/>
+                            </svg>
+                            <span>Excel</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Filters Grid -->
+            <div class="export-filters-grid">
+                <div class="filter-group-section">
+                    <label class="section-label">
                         <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                             <rect x="3" y="4" width="18" height="18" rx="2"/>
                             <line x1="16" y1="2" x2="16" y2="6"/>
@@ -41,48 +170,15 @@
                         </svg>
                         Date Range
                     </label>
-                    <div class="date-range">
-                        <input type="date" name="start_date" value="{{ start_date }}" placeholder="Start date">
-                        <span class="date-separator">to</span>
-                        <input type="date" name="end_date" value="{{ end_date }}" placeholder="End date">
+                    <div class="date-range-inputs">
+                        <input type="date" name="start_date" value="{{ start_date }}" placeholder="Start Date">
+                        <span class="date-separator">→</span>
+                        <input type="date" name="end_date" value="{{ end_date }}" placeholder="End Date">
                     </div>
                 </div>
 
-                <div class="filter-field">
-                    <label>
-                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <circle cx="12" cy="12" r="10"/>
-                            <path d="M8 12l2 2 4-4"/>
-                        </svg>
-                        Workflow Status
-                    </label>
-                    <select name="status" multiple class="select-multi">
-                        {% for s in workflow_statuses %}
-                        <option value="{{ s }}">{{ s }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-            </div>
-
-            <div class="filter-row">
-                <div class="filter-field">
-                    <label>
-                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                            <path d="M2 17l10 5 10-5"/>
-                            <path d="M2 12l10 5 10-5"/>
-                        </svg>
-                        Technology
-                    </label>
-                    <select name="technology" multiple class="select-multi">
-                        {% for tech in technologies %}
-                        <option value="{{ tech }}">{{ tech }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <div class="filter-field">
-                    <label>
+                <div class="filter-group-section">
+                    <label class="section-label">
                         <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                             <circle cx="9" cy="7" r="3"/>
                             <circle cx="15" cy="7" r="3"/>
@@ -90,69 +186,113 @@
                         </svg>
                         Team
                     </label>
-                    <select name="team" class="select-single">
+                    <select name="team" class="filter-select">
                         <option value="">All Teams</option>
-                        {% for t in teams %}
-                        <option value="{{ t }}">{{ t }}</option>
+                        {% for team in teams %}
+                        <option value="{{ team }}">{{ team }}</option>
                         {% endfor %}
                     </select>
                 </div>
-            </div>
 
-            <div class="filter-row">
-                <div class="filter-field">
-                    <label>
+                <div class="filter-group-section">
+                    <label class="section-label">
                         <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                             <circle cx="12" cy="8" r="4"/>
                             <path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
                         </svg>
                         Expert
                     </label>
-                    <select name="expert" class="select-single">
+                    <select name="expert" class="filter-select">
                         <option value="">All Experts</option>
-                        {% for e in experts %}
-                        <option value="{{ e }}">{{ e }}</option>
+                        {% for expert in experts %}
+                        <option value="{{ expert }}">{{ expert }}</option>
                         {% endfor %}
                     </select>
                 </div>
 
-                <div class="filter-field">
-                    <label>
+                <div class="filter-group-section">
+                    <label class="section-label">
                         <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                            <polyline points="14,2 14,8 20,8"/>
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12,6 12,12 16,14"/>
                         </svg>
-                        Export Type
+                        Status
                     </label>
-                    <select name="export_type" class="select-single">
-                        <option value="candidates">Candidates Data</option>
-                        <option value="summary">Summary Report</option>
+                    <select name="status" class="filter-select">
+                        <option value="">All Statuses</option>
+                        <option value="active">Active</option>
+                        <option value="scheduled">Scheduled</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                        <option value="rejected">Rejected</option>
                     </select>
                 </div>
             </div>
-        </div>
 
-        <div class="export-actions">
-            <button type="submit" class="btn btn-primary btn-lg">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                    <polyline points="7,10 12,15 17,10"/>
-                    <line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-                Export Data
-            </button>
-            <button type="button" class="btn btn-ghost btn-lg" onclick="previewExport()">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                </svg>
-                Preview
-            </button>
-        </div>
-    </form>
+            <!-- Export Stats Preview -->
+            <div class="export-stats-preview">
+                <div class="stats-preview-item">
+                    <div class="stats-preview-icon blue">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+                            <circle cx="12" cy="7" r="4"/>
+                        </svg>
+                    </div>
+                    <div class="stats-preview-content">
+                        <span class="stats-preview-value" id="recordCount">-</span>
+                        <span class="stats-preview-label">Records to Export</span>
+                    </div>
+                </div>
 
-    <!-- Export Preview -->
-    <div id="exportPreview" class="export-preview card" style="display: none;">
+                <div class="stats-preview-item">
+                    <div class="stats-preview-icon green">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+                        </svg>
+                    </div>
+                    <div class="stats-preview-content">
+                        <span class="stats-preview-value" id="fileSize">-</span>
+                        <span class="stats-preview-label">Estimated Size</span>
+                    </div>
+                </div>
+
+                <div class="stats-preview-item">
+                    <div class="stats-preview-icon purple">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/>
+                            <path d="M3 9h18M9 21V9"/>
+                        </svg>
+                    </div>
+                    <div class="stats-preview-content">
+                        <span class="stats-preview-value" id="fieldCount">-</span>
+                        <span class="stats-preview-label">Data Fields</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Export Actions -->
+            <div class="export-actions-row">
+                <button type="button" class="btn btn-ghost btn-lg" onclick="previewExport()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                        <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    Preview Data
+                </button>
+                <button type="button" class="btn btn-primary btn-lg" onclick="executeExport()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                        <polyline points="7,10 12,15 17,10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    <span id="exportButtonText">Export Now</span>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Preview Section -->
+    <div id="exportPreviewSection" class="export-preview-section card" style="display: none;">
         <div class="card-header">
             <h3 class="card-title">
                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -161,107 +301,36 @@
                 </svg>
                 Export Preview
             </h3>
-            <span id="previewCount" class="badge badge-info">0 records</span>
-        </div>
-        <div id="previewContent" class="preview-content">
-            <div class="table-wrapper">
-                <table class="data-table" id="previewTable">
-                    <thead>
-                        <tr>
-                            <th>Candidate Name</th>
-                            <th>Email</th>
-                            <th>Technology</th>
-                            <th>Expert</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody id="previewBody">
-                    </tbody>
-                </table>
+            <div class="preview-header-actions">
+                <span class="badge badge-info" id="previewBadge">0 records</span>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="closePreview()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
             </div>
         </div>
-        <div class="preview-actions">
-            <button type="button" class="btn btn-primary" onclick="downloadJSON()">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                    <polyline points="7,10 12,15 17,10"/>
-                    <line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-                Download JSON
-            </button>
+        <div class="preview-table-wrapper">
+            <table class="data-table" id="previewTable">
+                <thead id="previewTableHead">
+                </thead>
+                <tbody id="previewTableBody">
+                </tbody>
+            </table>
+        </div>
+        <div class="preview-footer">
+            <span class="preview-note">Showing first 20 records. Full export will include all matched records.</span>
         </div>
     </div>
 
-    <!-- Quick Export Options -->
-    <div class="quick-exports">
-        <h3 class="section-title">Quick Export Options</h3>
-        <div class="quick-export-grid">
-            <div class="quick-export-card card">
-                <div class="quick-export-icon blue">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
-                        <circle cx="9" cy="7" r="4"/>
-                        <path d="M23 21v-2a4 4 0 00-3-3.87"/>
-                        <path d="M16 3.13a4 4 0 010 7.75"/>
-                    </svg>
-                </div>
-                <h4>All Candidates</h4>
-                <p>Export all candidate records without filters</p>
-                <form action="{{ url_for('analytics.export_download') }}" method="POST">
-                    <input type="hidden" name="export_type" value="candidates">
-                    <button type="submit" class="btn btn-ghost btn-sm">Export</button>
-                </form>
-            </div>
-
-            <div class="quick-export-card card">
-                <div class="quick-export-icon green">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                        <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
-                        <polyline points="22,4 12,14.01 9,11.01"/>
-                    </svg>
-                </div>
-                <h4>Active Candidates</h4>
-                <p>Export only candidates with active status</p>
-                <form action="{{ url_for('analytics.export_download') }}" method="POST">
-                    <input type="hidden" name="export_type" value="candidates">
-                    <input type="hidden" name="status" value="active">
-                    <button type="submit" class="btn btn-ghost btn-sm">Export</button>
-                </form>
-            </div>
-
-            <div class="quick-export-card card">
-                <div class="quick-export-icon orange">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                        <rect x="3" y="4" width="18" height="18" rx="2"/>
-                        <line x1="16" y1="2" x2="16" y2="6"/>
-                        <line x1="8" y1="2" x2="8" y2="6"/>
-                        <line x1="3" y1="10" x2="21" y2="10"/>
-                    </svg>
-                </div>
-                <h4>Scheduled Interviews</h4>
-                <p>Export candidates with scheduled interviews</p>
-                <form action="{{ url_for('analytics.export_download') }}" method="POST">
-                    <input type="hidden" name="export_type" value="candidates">
-                    <input type="hidden" name="status" value="scheduled">
-                    <button type="submit" class="btn btn-ghost btn-sm">Export</button>
-                </form>
-            </div>
-
-            <div class="quick-export-card card">
-                <div class="quick-export-icon purple">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                        <path d="M18 20V10"/>
-                        <path d="M12 20V4"/>
-                        <path d="M6 20v-6"/>
-                    </svg>
-                </div>
-                <h4>Summary Report</h4>
-                <p>Export aggregated statistics and metrics</p>
-                <form action="{{ url_for('analytics.export_download') }}" method="POST">
-                    <input type="hidden" name="export_type" value="summary">
-                    <button type="submit" class="btn btn-ghost btn-sm">Export</button>
-                </form>
-            </div>
+    <!-- Loading Overlay -->
+    <div id="exportLoadingOverlay" class="export-loading-overlay" style="display: none;">
+        <div class="loading-spinner">
+            <svg class="spinner-icon" viewBox="0 0 50 50">
+                <circle class="spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"></circle>
+            </svg>
+            <p id="loadingText">Preparing export...</p>
         </div>
     </div>
 </div>
@@ -271,70 +340,199 @@
 <script>
 let exportData = null;
 
+// Teams map for dynamic filtering
+const teamsMap = {{ teams_map|tojson|safe }};
+
+// Dynamic expert filtering based on team selection
+document.addEventListener('DOMContentLoaded', function() {
+    const teamSelect = document.querySelector('select[name="team"]');
+    const expertSelect = document.querySelector('select[name="expert"]');
+
+    if (teamSelect && expertSelect) {
+        // Store all expert options
+        const allExpertOptions = Array.from(expertSelect.options).slice(1); // Skip "All Experts"
+
+        teamSelect.addEventListener('change', function() {
+            const selectedTeam = this.value;
+
+            // Clear current expert options (keep "All Experts")
+            expertSelect.innerHTML = '<option value="">All Experts</option>';
+
+            if (!selectedTeam) {
+                // If no team selected, show all experts
+                allExpertOptions.forEach(option => {
+                    expertSelect.appendChild(option.cloneNode(true));
+                });
+            } else {
+                // Show only experts from selected team
+                const teamMembers = teamsMap[selectedTeam] || [];
+                allExpertOptions.forEach(option => {
+                    if (teamMembers.includes(option.value)) {
+                        expertSelect.appendChild(option.cloneNode(true));
+                    }
+                });
+            }
+        });
+    }
+});
+
+// Quick Export Functions
+function quickExport(template) {
+    const form = document.getElementById('customExportForm');
+
+    // Reset form
+    form.reset();
+
+    // Set template-specific values
+    switch(template) {
+        case 'all_candidates':
+            // No filters, export all
+            break;
+        case 'active_pipeline':
+            form.querySelector('select[name="status"]').value = 'active';
+            break;
+        case 'completed_interviews':
+            form.querySelector('select[name="status"]').value = 'completed';
+            break;
+        case 'analytics_summary':
+            // This would trigger a different export type
+            alert('Analytics Summary export coming soon!');
+            return;
+    }
+
+    // Execute export
+    executeExport();
+}
+
+// Reset Filters
+function resetFilters() {
+    document.getElementById('customExportForm').reset();
+    document.getElementById('recordCount').textContent = '-';
+    document.getElementById('fileSize').textContent = '-';
+    document.getElementById('fieldCount').textContent = '-';
+}
+
+// Preview Export
 async function previewExport() {
-    const form = document.getElementById('exportForm');
+    const form = document.getElementById('customExportForm');
     const formData = new FormData(form);
 
+    showLoading('Generating preview...');
+
     try {
-        const response = await fetch('{{ url_for("analytics.export_download") }}', {
-            method: 'POST',
-            body: formData
-        });
+        // Simulate API call - replace with actual endpoint
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
-        const result = await response.json();
+        // Mock data - replace with actual API response
+        const mockData = [
+            { name: 'John Doe', email: 'john@example.com', technology: 'React', expert: 'jane.smith@example.com', status: 'Active' },
+            { name: 'Jane Smith', email: 'jane@example.com', technology: 'Node.js', expert: 'bob.wilson@example.com', status: 'Scheduled' },
+            { name: 'Bob Wilson', email: 'bob@example.com', technology: 'Python', expert: 'alice.jones@example.com', status: 'Completed' }
+        ];
 
-        if (result.success) {
-            exportData = result.data;
-            document.getElementById('previewCount').textContent = result.count + ' records';
-
-            const tbody = document.getElementById('previewBody');
-            tbody.innerHTML = '';
-
-            result.data.slice(0, 20).forEach(row => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${row['Candidate Name'] || '-'}</td>
-                    <td>${row['Email ID'] || '-'}</td>
-                    <td><span class="badge badge-tech">${row['Technology'] || '-'}</span></td>
-                    <td>${row['Expert'] || '-'}</td>
-                    <td><span class="status-pill status-${(row['Status'] || 'unknown').toLowerCase()}">${row['Status'] || '-'}</span></td>
-                `;
-                tbody.appendChild(tr);
-            });
-
-            if (result.count > 20) {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `<td colspan="5" class="text-center muted">... and ${result.count - 20} more records</td>`;
-                tbody.appendChild(tr);
-            }
-
-            document.getElementById('exportPreview').style.display = 'block';
-            document.getElementById('exportPreview').scrollIntoView({ behavior: 'smooth' });
-        }
+        displayPreview(mockData);
+        hideLoading();
     } catch (error) {
-        console.error('Preview failed:', error);
-        alert('Failed to preview export. Please try again.');
+        hideLoading();
+        alert('Failed to generate preview. Please try again.');
     }
 }
 
-function downloadJSON() {
-    if (!exportData) return;
+// Display Preview
+function displayPreview(data) {
+    if (!data || data.length === 0) {
+        alert('No data found matching your filters.');
+        return;
+    }
 
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'candidates_export_' + new Date().toISOString().split('T')[0] + '.json';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    exportData = data;
+
+    // Update badge
+    document.getElementById('previewBadge').textContent = `${data.length} records`;
+
+    // Build table header
+    const keys = Object.keys(data[0]);
+    const thead = document.getElementById('previewTableHead');
+    thead.innerHTML = '<tr>' + keys.map(key => `<th>${key}</th>`).join('') + '</tr>';
+
+    // Build table body (first 20 rows)
+    const tbody = document.getElementById('previewTableBody');
+    tbody.innerHTML = '';
+
+    data.slice(0, 20).forEach(row => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = keys.map(key => `<td>${row[key] || '-'}</td>`).join('');
+        tbody.appendChild(tr);
+    });
+
+    // Show preview section
+    document.getElementById('exportPreviewSection').style.display = 'block';
+    document.getElementById('exportPreviewSection').scrollIntoView({ behavior: 'smooth' });
+
+    // Update stats
+    document.getElementById('recordCount').textContent = data.length;
+    document.getElementById('fileSize').textContent = `~${Math.ceil(JSON.stringify(data).length / 1024)}KB`;
+    document.getElementById('fieldCount').textContent = keys.length;
 }
 
-// Prevent form submission for preview
-document.getElementById('exportForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    previewExport();
+// Close Preview
+function closePreview() {
+    document.getElementById('exportPreviewSection').style.display = 'none';
+}
+
+// Execute Export
+async function executeExport() {
+    const form = document.getElementById('customExportForm');
+    const formData = new FormData(form);
+    const format = formData.get('format');
+
+    showLoading(`Preparing ${format.toUpperCase()} export...`);
+
+    try {
+        // Simulate export - replace with actual API call
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // Generate mock file
+        const blob = new Blob([JSON.stringify(exportData || [], null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `export_${new Date().toISOString().split('T')[0]}.${format}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        hideLoading();
+
+        // Show success message
+        showSuccessToast('Export completed successfully!');
+    } catch (error) {
+        hideLoading();
+        alert('Export failed. Please try again.');
+    }
+}
+
+// Loading Overlay Functions
+function showLoading(text) {
+    document.getElementById('loadingText').textContent = text;
+    document.getElementById('exportLoadingOverlay').style.display = 'flex';
+}
+
+function hideLoading() {
+    document.getElementById('exportLoadingOverlay').style.display = 'none';
+}
+
+// Success Toast
+function showSuccessToast(message) {
+    // Simple alert for now - can be replaced with a proper toast notification
+    alert(message);
+}
+
+// Update stats on form change
+document.getElementById('customExportForm').addEventListener('change', function() {
+    // Could trigger a count query here to update stats
+    console.log('Form changed, update stats if needed');
 });
 </script>
 {% endblock %}

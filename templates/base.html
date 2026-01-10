@@ -1,14 +1,26 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark">
     <title>{% block page_title %}InterviewOS{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        /* Ensure dark theme on inputs */
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(0.8);
+            cursor: pointer;
+        }
+        select option {
+            background: #16161e;
+            color: #f1f5f9;
+        }
+    </style>
 </head>
 <body>
     <div class="app-layout" id="app-layout">
@@ -16,15 +28,20 @@
         <aside class="sidebar">
             <!-- Toggle Button -->
             <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle Sidebar">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <!-- Left Chevron - shows when sidebar is expanded (to collapse) -->
+                <svg class="toggle-chevron-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="15,18 9,12 15,6"/>
+                </svg>
+                <!-- Right Chevron - shows when sidebar is collapsed (to expand) -->
+                <svg class="toggle-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9,18 15,12 9,6"/>
                 </svg>
             </button>
 
             <div class="sidebar-header">
                 <div class="logo">
                     <div class="logo-icon">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <rect x="3" y="3" width="18" height="18" rx="4" fill="currentColor"/>
                             <path d="M8 12h8M12 8v8" stroke="white" stroke-width="2" stroke-linecap="round"/>
                         </svg>
@@ -66,7 +83,7 @@
                         </svg>
                         <span>Funnel Analytics</span>
                     </a>
-                </div>
+            </div>
 
                 <div class="nav-section">
                     <span class="nav-section-title">Management</span>
@@ -120,7 +137,7 @@
                     <div class="user-info">
                         <span class="user-name">Admin</span>
                         <span class="user-role">Manager</span>
-                    </div>
+            </div>
                 </div>
             </div>
         </aside>
@@ -131,15 +148,15 @@
             <header class="topbar">
                 <div class="topbar-left">
                     <h1 class="page-title">{% block title %}Dashboard{% endblock %}</h1>
-                </div>
+            </div>
 
                 <div class="topbar-right">
                     <div class="status-badge">
                         <span class="status-dot"></span>
                         Live Data
-                    </div>
-                </div>
-            </header>
+            </div>
+            </div>
+        </header>
 
             <!-- Page Content -->
             <main class="main-content">

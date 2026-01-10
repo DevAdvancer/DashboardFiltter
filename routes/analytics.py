@@ -797,17 +797,27 @@ def export_center():
 
     # Get filter options for export
     expert_team_map, teams_map = get_expert_team_map(db)
-    teams_list = list(teams_map.keys())
+    teams_list = sorted(list(teams_map.keys()))
 
     experts = sorted(db.taskBody.distinct('assignedTo', {
         "status": "Completed",
         "assignedTo": {"$type": "string", "$ne": ""},
     }))
 
+    # Get technologies and statuses for filters (filter out None values)
+    technologies_raw = db.candidateDetails.distinct('Technology')
+    technologies = sorted([t for t in technologies_raw if t is not None and t != ''])
+
+    workflow_statuses_raw = db.candidateDetails.distinct('workflowStatus')
+    workflow_statuses = sorted([s for s in workflow_statuses_raw if s is not None and s != ''])
+
     return render_template(
         'export_center.html',
         teams=teams_list,
         experts=experts,
+        technologies=technologies,
+        workflow_statuses=workflow_statuses,
+        teams_map=teams_map,
         start_date=start_date,
         end_date=end_date
     )
