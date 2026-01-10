@@ -1,4 +1,5 @@
 import os
+import sys
 from pymongo import MongoClient
 
 # MongoDB connection settings from environment variables
@@ -13,17 +14,24 @@ TEAMS_MONGO_DB = os.getenv("TEAMS_MONGO_DB") or MONGO_DB
 
 # Validate required environment variables
 if not MONGO_URI:
-    raise ValueError(
-        "MONGO_URI environment variable is required. "
-        "For local development: set it in your .env file. "
-        "For Vercel: set it in Project Settings > Environment Variables."
+    error_msg = (
+        "❌ MONGO_URI environment variable is required.\n"
+        "📝 For local development: Create a .env file with MONGO_URI=your_connection_string\n"
+        "☁️  For Vercel: Go to Project Settings > Environment Variables and add MONGO_URI\n"
+        "💡 Example: MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/"
     )
+    print(error_msg, file=sys.stderr)
+    raise ValueError(error_msg)
+
 if not MONGO_DB:
-    raise ValueError(
-        "MONGO_DB environment variable is required. "
-        "For local development: set it in your .env file. "
-        "For Vercel: set it in Project Settings > Environment Variables."
+    error_msg = (
+        "❌ MONGO_DB environment variable is required.\n"
+        "📝 For local development: Create a .env file with MONGO_DB=your_database_name\n"
+        "☁️  For Vercel: Go to Project Settings > Environment Variables and add MONGO_DB\n"
+        "💡 Example: MONGO_DB=dashboard_db"
     )
+    print(error_msg, file=sys.stderr)
+    raise ValueError(error_msg)
 
 _client = None
 _teams_client = None
