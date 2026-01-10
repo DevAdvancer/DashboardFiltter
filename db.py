@@ -13,9 +13,17 @@ TEAMS_MONGO_DB = os.getenv("TEAMS_MONGO_DB") or MONGO_DB
 
 # Validate required environment variables
 if not MONGO_URI:
-    raise ValueError("MONGO_URI environment variable is required. Please set it in your .env file.")
+    raise ValueError(
+        "MONGO_URI environment variable is required. "
+        "For local development: set it in your .env file. "
+        "For Vercel: set it in Project Settings > Environment Variables."
+    )
 if not MONGO_DB:
-    raise ValueError("MONGO_DB environment variable is required. Please set it in your .env file.")
+    raise ValueError(
+        "MONGO_DB environment variable is required. "
+        "For local development: set it in your .env file. "
+        "For Vercel: set it in Project Settings > Environment Variables."
+    )
 
 _client = None
 _teams_client = None
