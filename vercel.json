@@ -3,11 +3,10 @@
   "builds": [
     {
       "src": "app.py",
-      "use": "@vercel/python"
-    },
-    {
-      "src": "static/**",
-      "use": "@vercel/static"
+      "use": "@vercel/python",
+      "config": {
+        "maxDuration": 30
+      }
     }
   ],
   "routes": [
@@ -19,11 +18,5 @@
       "src": "/(.*)",
       "dest": "/app.py"
     }
-  ],
-  "outputDirectory": ".",
-  "functions": {
-    "app.py": {
-      "maxDuration": 30
-    }
-  }
+  ]
 }
