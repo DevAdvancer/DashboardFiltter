@@ -68,7 +68,7 @@ After Vercel finishes deploying:
    ```
    https://dashboard-filtter.vercel.app/health
    ```
-   
+
    Expected response:
    ```json
    {
@@ -165,7 +165,7 @@ Check Vercel logs to ensure Python 3.9+ is being used:
 **Solution**: Already fixed with `certifi` package
 
 ### "ServerSelectionTimeoutError"
-**Solution**: 
+**Solution**:
 - Check MongoDB Network Access (whitelist 0.0.0.0/0)
 - Verify connection string is correct
 - Already fixed with increased timeouts
