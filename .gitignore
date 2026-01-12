@@ -63,3 +63,4 @@ htmlcov/
 # Excel output files
 *.xlsx
 .vercel
+.env*.local

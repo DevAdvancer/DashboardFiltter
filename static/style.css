@@ -2654,6 +2654,96 @@ select option {
     gap: 20px;
 }
 
+/* Conversion Cell Tooltips */
+.conversion-cell {
+    position: relative;
+    cursor: help;
+}
+
+.conversion-cell sup {
+    color: var(--orange);
+    font-size: 10px;
+    margin-left: 2px;
+}
+
+.conversion-cell[title]:hover::after {
+    content: attr(title);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 6px 10px;
+    background: rgba(22, 22, 30, 0.95);
+    color: var(--text);
+    font-size: 11px;
+    white-space: nowrap;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--shadow);
+    z-index: 1000;
+    pointer-events: none;
+    margin-bottom: 4px;
+}
+
+/* Quick Select Filters */
+.quick-filters {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, var(--surface) 0%, var(--bg-elevated) 100%);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    flex-wrap: wrap;
+}
+
+.quick-filters-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.quick-filters-label svg {
+    color: var(--primary);
+}
+
+.quick-filters-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    flex: 1;
+}
+
+.quick-select {
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: var(--radius);
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition);
+    white-space: nowrap;
+}
+
+.quick-select:hover {
+    background: var(--surface-hover);
+    border-color: var(--border-strong);
+    color: var(--text);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+}
+
+.quick-select:active {
+    transform: translateY(0);
+}
+
 .filters-card {
     padding: 20px;
     overflow: visible;
@@ -4433,3 +4523,185 @@ select.select-single {
    =========================== */
 
 /* Tooltip styling is handled via Chart.js options */
+
+/* ===========================
+   Active Candidates Dashboard Styles
+   =========================== */
+
+.filter-hint {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+    font-style: italic;
+}
+
+.candidate-cell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.candidate-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.95rem;
+    flex-shrink: 0;
+}
+
+.candidate-avatar.small {
+    width: 28px;
+    height: 28px;
+    font-size: 0.8rem;
+}
+
+.candidate-avatar.large {
+    width: 64px;
+    height: 64px;
+    font-size: 1.5rem;
+}
+
+.candidate-name-text {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.progress-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.progress-text {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+}
+
+.progress-bar {
+    width: 60px;
+    height: 6px;
+    background: var(--bg-secondary);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--green), var(--green-dark));
+    transition: width 0.3s ease;
+    border-radius: 3px;
+}
+
+.badge-success {
+    background: var(--green-light);
+    color: var(--green);
+}
+
+.badge-danger {
+    background: var(--red-light);
+    color: var(--red);
+}
+
+.badge-warning {
+    background: var(--orange-light);
+    color: var(--orange);
+}
+
+.info-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    margin-top: 20px;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.info-banner svg {
+    flex-shrink: 0;
+    color: var(--primary);
+}
+
+.info-banner strong {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.btn-sm {
+    padding: 6px 10px;
+    font-size: 0.85rem;
+    border-radius: 6px;
+}
+
+/* Quick Select Filters */
+.quick-select-filters {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: var(--bg-elevated);
+    border-radius: 8px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+}
+
+.quick-select-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.quick-btn {
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.quick-btn:hover {
+    background: var(--surface-hover);
+    border-color: var(--primary);
+    color: var(--primary);
+    transform: translateY(-1px);
+}
+
+.quick-btn:active {
+    transform: translateY(0);
+}
+
+/* Responsive Active Candidates */
+@media (max-width: 768px) {
+    .quick-select-filters {
+        flex-wrap: wrap;
+    }
+    
+    .quick-btn {
+        font-size: 0.8rem;
+        padding: 6px 12px;
+    }
+    
+    .candidate-cell {
+        gap: 8px;
+    }
+    
+    .candidate-name-text {
+        font-size: 0.9rem;
+    }
+}

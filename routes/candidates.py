@@ -1,6 +1,8 @@
 
 from flask import Blueprint, render_template, request
 from db import get_db
+from datetime import datetime, timedelta
+from collections import Counter
 
 candidates_bp = Blueprint('candidates', __name__)
 
@@ -145,4 +147,134 @@ def candidate_lookup():
         candidate_name=candidate_name,
         candidate_data=candidate_data,
         interview_records=interview_records
+    )
+
+
+@candidates_bp.route('/active', methods=['GET'])
+def active_candidates():
+    """
+    Active Candidates Dashboard - shows candidates with multiple interviews
+    within a specified time period.
+
+    Filters:
+    - min_interviews: Minimum number of interviews (default: 2, which means > 1)
+    - months: Number of months to look back (default: 3)
+    """
+    db = get_db()
+
+    # Get filter parameters
+    try:
+        min_interviews = int(request.args.get('min_interviews', 2))
+    except ValueError:
+        min_interviews = 2
+
+    try:
+        months = int(request.args.get('months', 3))
+    except ValueError:
+        months = 3
+
+    # Calculate date range
+    end_date = datetime.utcnow()
+    start_date = end_date - timedelta(days=months * 30)  # Approximate months
+
+    # Convert to ISO string format for MongoDB query
+    start_date_str = start_date.strftime('%Y-%m-%dT%H:%M:%S')
+    end_date_str = end_date.strftime('%Y-%m-%dT%H:%M:%S')
+
+    # Build aggregation pipeline to find active candidates
+    pipeline = [
+        {
+            "$match": {
+                "Candidate Name": {"$type": "string", "$ne": ""},
+                "receivedDateTime": {
+                    "$gte": start_date_str,
+                    "$lte": end_date_str
+                }
+            }
+        },
+        {
+            "$group": {
+                "_id": "$Candidate Name",
+                "totalInterviews": {"$sum": 1},
+                "completedCount": {
+                    "$sum": {"$cond": [{"$eq": ["$status", "Completed"]}, 1, 0]}
+                },
+                "cancelledCount": {
+                    "$sum": {"$cond": [{"$eq": ["$status", "Cancelled"]}, 1, 0]}
+                },
+                "rescheduledCount": {
+                    "$sum": {"$cond": [{"$eq": ["$status", "Rescheduled"]}, 1, 0]}
+                },
+                "rounds": {"$addToSet": "$actualRound"},
+                "experts": {"$addToSet": "$assignedTo"},
+                "lastInterviewDate": {"$max": "$receivedDateTime"},
+                "firstInterviewDate": {"$min": "$receivedDateTime"}
+            }
+        },
+        {
+            "$match": {
+                "totalInterviews": {"$gte": min_interviews}
+            }
+        },
+        {
+            "$sort": {"totalInterviews": -1, "lastInterviewDate": -1}
+        },
+        {
+            "$limit": 500  # Limit for performance
+        }
+    ]
+
+    results = list(db.taskBody.aggregate(pipeline))
+
+    # Process results
+    active_candidates_list = []
+    for result in results:
+        candidate_name = result['_id']
+        total = result['totalInterviews']
+        completed = result['completedCount']
+        cancelled = result['cancelledCount']
+        rescheduled = result['rescheduledCount']
+
+        # Calculate completion rate
+        completion_rate = round((completed / total) * 100, 1) if total > 0 else 0
+
+        # Filter out None/empty values from rounds and experts
+        rounds = [r for r in result.get('rounds', []) if r]
+        experts = [e for e in result.get('experts', []) if e]
+
+        active_candidates_list.append({
+            'name': candidate_name,
+            'total_interviews': total,
+            'completed': completed,
+            'cancelled': cancelled,
+            'rescheduled': rescheduled,
+            'completion_rate': completion_rate,
+            'unique_rounds': len(rounds),
+            'unique_experts': len(experts),
+            'last_interview': result.get('lastInterviewDate', '')[:10] if result.get('lastInterviewDate') else 'N/A',
+            'first_interview': result.get('firstInterviewDate', '')[:10] if result.get('firstInterviewDate') else 'N/A',
+            'rounds_list': rounds,
+            'experts_list': experts
+        })
+
+    # Calculate summary statistics
+    total_active_candidates = len(active_candidates_list)
+    total_interviews = sum(c['total_interviews'] for c in active_candidates_list)
+    avg_interviews = round(total_interviews / total_active_candidates, 1) if total_active_candidates > 0 else 0
+
+    summary = {
+        'total_candidates': total_active_candidates,
+        'total_interviews': total_interviews,
+        'avg_interviews': avg_interviews,
+        'date_range': f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
+    }
+
+    return render_template(
+        'active_candidates.html',
+        candidates=active_candidates_list,
+        summary=summary,
+        min_interviews=min_interviews,
+        months=months,
+        start_date=start_date.strftime('%Y-%m-%d'),
+        end_date=end_date.strftime('%Y-%m-%d')
     )

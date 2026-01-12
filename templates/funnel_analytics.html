@@ -5,9 +5,29 @@
 
 {% block content %}
 <div class="analytics-page">
+    <!-- Quick Select Filters -->
+    <div class="quick-filters card">
+        <div class="quick-filters-label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12,6 12,12 16,14"/>
+            </svg>
+            <span>Quick Select:</span>
+        </div>
+        <div class="quick-filters-buttons">
+            <button type="button" class="btn btn-ghost btn-sm quick-select" data-days="7">Last 7 Days</button>
+            <button type="button" class="btn btn-ghost btn-sm quick-select" data-days="30">Last 30 Days</button>
+            <button type="button" class="btn btn-ghost btn-sm quick-select" data-days="90">Last 90 Days</button>
+            <button type="button" class="btn btn-ghost btn-sm quick-select" data-range="this-month">This Month</button>
+            <button type="button" class="btn btn-ghost btn-sm quick-select" data-range="last-month">Last Month</button>
+            <button type="button" class="btn btn-ghost btn-sm quick-select" data-range="this-year">This Year</button>
+            <button type="button" class="btn btn-ghost btn-sm quick-select" data-range="all-time">All Time</button>
+        </div>
+    </div>
+
     <!-- Filters Section -->
     <div class="filters-card card">
-        <form method="GET" action="{{ url_for('analytics.funnel_analytics') }}" class="filters-form">
+        <form method="GET" action="{{ url_for('analytics.funnel_analytics') }}" class="filters-form" id="filterForm">
             <div class="filters-row">
                 <div class="filter-item">
                     <label>
@@ -262,17 +282,17 @@
                         <td class="stage-cell second">{{ stat.second }}</td>
                         <td class="stage-cell third">{{ stat.third_tech }}</td>
                         <td class="stage-cell final">{{ stat.final }}</td>
-                        <td class="conversion-cell {% if stat.screening_to_1st >= 50 %}good{% elif stat.screening_to_1st >= 25 %}medium{% else %}low{% endif %}">
-                            {{ stat.screening_to_1st }}%
+                        <td class="conversion-cell {% if stat.screening_to_1st >= 50 %}good{% elif stat.screening_to_1st >= 25 %}medium{% else %}low{% endif %}" title="Actual: {{ stat.screening_to_1st }}%">
+                            {{ [stat.screening_to_1st, 100]|min }}%{% if stat.screening_to_1st > 100 %}<sup>*</sup>{% endif %}
                         </td>
-                        <td class="conversion-cell {% if stat.first_to_2nd >= 50 %}good{% elif stat.first_to_2nd >= 25 %}medium{% else %}low{% endif %}">
-                            {{ stat.first_to_2nd }}%
+                        <td class="conversion-cell {% if stat.first_to_2nd >= 50 %}good{% elif stat.first_to_2nd >= 25 %}medium{% else %}low{% endif %}" title="Actual: {{ stat.first_to_2nd }}%">
+                            {{ [stat.first_to_2nd, 100]|min }}%{% if stat.first_to_2nd > 100 %}<sup>*</sup>{% endif %}
                         </td>
-                        <td class="conversion-cell {% if stat.second_to_3rd >= 50 %}good{% elif stat.second_to_3rd >= 25 %}medium{% else %}low{% endif %}">
-                            {{ stat.second_to_3rd }}%
+                        <td class="conversion-cell {% if stat.second_to_3rd >= 50 %}good{% elif stat.second_to_3rd >= 25 %}medium{% else %}low{% endif %}" title="Actual: {{ stat.second_to_3rd }}%">
+                            {{ [stat.second_to_3rd, 100]|min }}%{% if stat.second_to_3rd > 100 %}<sup>*</sup>{% endif %}
                         </td>
-                        <td class="conversion-cell {% if stat.third_to_final >= 50 %}good{% elif stat.third_to_final >= 25 %}medium{% else %}low{% endif %}">
-                            {{ stat.third_to_final }}%
+                        <td class="conversion-cell {% if stat.third_to_final >= 50 %}good{% elif stat.third_to_final >= 25 %}medium{% else %}low{% endif %}" title="Actual: {{ stat.third_to_final }}%">
+                            {{ [stat.third_to_final, 100]|min }}%{% if stat.third_to_final > 100 %}<sup>*</sup>{% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -337,8 +357,8 @@
                         <td class="stage-cell second">{{ stat.second }}</td>
                         <td class="stage-cell third">{{ stat.third_tech }}</td>
                         <td class="stage-cell final">{{ stat.final }}</td>
-                        <td class="conversion-cell {% if stat.screening_to_1st >= 50 %}good{% elif stat.screening_to_1st >= 25 %}medium{% else %}low{% endif %}">
-                            {{ stat.screening_to_1st }}%
+                        <td class="conversion-cell {% if stat.screening_to_1st >= 50 %}good{% elif stat.screening_to_1st >= 25 %}medium{% else %}low{% endif %}" title="Actual: {{ stat.screening_to_1st }}%">
+                            {{ [stat.screening_to_1st, 100]|min }}%{% if stat.screening_to_1st > 100 %}<sup>*</sup>{% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -357,6 +377,53 @@ window.teamsMap = {{ teams_map|tojson }};
 {% endblock %}
 
 {% block scripts %}
+<script>
+// Quick Select Filters
+document.querySelectorAll('.quick-select').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const today = new Date();
+        let startDate, endDate;
+
+        if (this.dataset.days) {
+            const days = parseInt(this.dataset.days);
+            startDate = new Date(today);
+            startDate.setDate(today.getDate() - days);
+            endDate = today;
+        } else if (this.dataset.range) {
+            const range = this.dataset.range;
+
+            if (range === 'this-month') {
+                startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+                endDate = today;
+            } else if (range === 'last-month') {
+                startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                endDate = new Date(today.getFullYear(), today.getMonth(), 0);
+            } else if (range === 'this-year') {
+                startDate = new Date(today.getFullYear(), 0, 1);
+                endDate = today;
+            } else if (range === 'all-time') {
+                startDate = null;
+                endDate = null;
+            }
+        }
+
+        const form = document.getElementById('filterForm');
+        if (startDate) {
+            form.querySelector('input[name="start_date"]').value = startDate.toISOString().split('T')[0];
+        } else {
+            form.querySelector('input[name="start_date"]').value = '';
+        }
+
+        if (endDate) {
+            form.querySelector('input[name="end_date"]').value = endDate.toISOString().split('T')[0];
+        } else {
+            form.querySelector('input[name="end_date"]').value = '';
+        }
+
+        form.submit();
+    });
+});
+</script>
 <script>
 // Funnel Bar Chart
 const funnelCtx = document.getElementById('funnelBarChart').getContext('2d');
@@ -384,13 +451,23 @@ new Chart(funnelCtx, {
 
 // Conversion Rate Chart
 const convCtx = document.getElementById('conversionChart').getContext('2d');
+// Store actual conversion values (may exceed 100%)
+const actualConversionValues = [
+    {{ funnel_totals.screening_to_1st }},
+    {{ funnel_totals.first_to_2nd }},
+    {{ funnel_totals.second_to_3rd }},
+    {{ funnel_totals.third_to_final }}
+];
+// Cap displayed values at 100% for cleaner visualization
+const displayConversionValues = actualConversionValues.map(val => Math.min(val, 100));
+
 new Chart(convCtx, {
     type: 'line',
     data: {
         labels: ['Scr→1st', '1st→2nd', '2nd→3rd', '3rd→Final'],
         datasets: [{
             label: 'Conversion Rate',
-            data: [{{ funnel_totals.screening_to_1st }}, {{ funnel_totals.first_to_2nd }}, {{ funnel_totals.second_to_3rd }}, {{ funnel_totals.third_to_final }}],
+            data: displayConversionValues,
             borderColor: '#3b82f6',
             backgroundColor: 'rgba(59, 130, 246, 0.1)',
             fill: true,
@@ -405,7 +482,31 @@ new Chart(convCtx, {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-            legend: { display: false }
+            legend: { display: false },
+            tooltip: {
+                backgroundColor: 'rgba(22, 22, 30, 0.95)',
+                titleColor: '#f1f5f9',
+                bodyColor: '#f1f5f9',
+                borderColor: '#3a3a4a',
+                borderWidth: 1,
+                padding: 12,
+                displayColors: false,
+                titleFont: { family: 'Plus Jakarta Sans', size: 12, weight: '600' },
+                bodyFont: { family: 'Plus Jakarta Sans', size: 13 },
+                callbacks: {
+                    label: function(context) {
+                        const actualValue = actualConversionValues[context.dataIndex];
+                        return 'Conversion: ' + actualValue.toFixed(1) + '%';
+                    },
+                    afterLabel: function(context) {
+                        const actualValue = actualConversionValues[context.dataIndex];
+                        if (actualValue > 100) {
+                            return '(exceeds 100%)';
+                        }
+                        return '';
+                    }
+                }
+            }
         },
         scales: {
             x: { grid: { display: false }, ticks: { font: { family: 'Plus Jakarta Sans', size: 11 } } },
