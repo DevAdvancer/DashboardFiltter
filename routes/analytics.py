@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, render_template, request, jsonify, current_app
 from db import get_db, get_teams_db
 from datetime import datetime
 from collections import Counter, defaultdict
@@ -48,40 +48,53 @@ def get_date_filter_strings():
 
 def get_active_experts(db):
     """
-    Get list of active expert emails from users collection.
+    Get list of active expert emails from users collection - CACHED.
     Only returns experts where:
     - manager = "Harsh Patel"
     - active = true
     """
-    users_collection = db.users
-    active_experts_cursor = users_collection.find(
-        {
-            "manager": "Harsh Patel",
-            "active": True
-        },
-        {
-            "email": 1,
-            "_id": 0
-        }
-    )
+    cache = current_app.cache
 
-    # Return set of lowercase emails for easy lookup
-    active_expert_emails = {user['email'].lower() for user in active_experts_cursor if user.get('email')}
-    return active_expert_emails
+    @cache.memoize(timeout=600)  # Cache for 10 minutes
+    def _get_active_experts_cached():
+        users_collection = db.users
+        active_experts_cursor = users_collection.find(
+            {
+                "manager": "Harsh Patel",
+                "active": True
+            },
+            {
+                "email": 1,
+                "_id": 0
+            }
+        )
+
+        # Return set of lowercase emails for easy lookup
+        active_expert_emails = {user['email'].lower() for user in active_experts_cursor if user.get('email')}
+        return active_expert_emails
+
+    return _get_active_experts_cached()
 
 
 def get_expert_team_map(db=None):
-    """Build expert -> team mapping from teams database."""
-    teams_db = get_teams_db()
-    teams_cursor = teams_db.teams.find({})
-    teams_map = {t['name']: t.get('members', []) for t in teams_cursor}
+    """Build expert -> team mapping from teams database - CACHED."""
+    cache = current_app.cache
 
-    expert_team_map = {}
-    for team_name, members in teams_map.items():
-        for member in members:
-            expert_team_map[str(member).lower()] = team_name
+    @cache.memoize(timeout=600)  # Cache for 10 minutes
+    def _get_expert_team_map_cached():
+        teams_db = get_teams_db()
+        # Use projection to only get needed fields
+        teams_cursor = teams_db.teams.find({}, {"name": 1, "members": 1, "_id": 0})
+        teams_map = {t['name']: t.get('members', []) for t in teams_cursor}
 
-    return expert_team_map, teams_map
+        expert_team_map = {}
+        for team_name, members in teams_map.items():
+            for member in members:
+                expert_team_map[str(member).lower()] = team_name
+
+        return expert_team_map, teams_map
+
+    return _get_expert_team_map_cached()
 
 
 def build_task_query(start_date='', end_date=''):
@@ -136,13 +149,14 @@ def get_expert_funnel_data(db, start_date='', end_date='', filter_team=None, fil
     # Build query for taskBody collection
     match_filters = build_task_query(start_date, end_date)
 
-    # Get all completed tasks
+    # Get all completed tasks with LIMIT for performance
     docs = list(db.taskBody.find(match_filters, {
         "assignedTo": 1,
         "Candidate Name": 1,
         "actualRound": 1,
         "receivedDateTime": 1,
-    }))
+        "_id": 0
+    }).limit(50000))  # Limit to prevent loading too much data
 
     # Aggregate by expert and stage
     expert_stage_counts = defaultdict(lambda: Counter())

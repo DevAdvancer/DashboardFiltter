@@ -5,12 +5,23 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from flask import Flask, render_template, jsonify
+from flask_caching import Cache
 from routes.dashboard import dashboard_bp
 from routes.teams import teams_bp
 from routes.candidates import candidates_bp
 from routes.analytics import analytics_bp
 
 app = Flask(__name__)
+
+# Configure caching for performance optimization
+cache = Cache(app, config={
+    'CACHE_TYPE': 'SimpleCache',  # In-memory cache for single-worker deployments
+    'CACHE_DEFAULT_TIMEOUT': 300,  # 5 minutes default cache timeout
+    'CACHE_THRESHOLD': 500  # Maximum number of items in cache
+})
+
+# Make cache available to blueprints
+app.cache = cache
 
 # Register Blueprints
 app.register_blueprint(dashboard_bp)
