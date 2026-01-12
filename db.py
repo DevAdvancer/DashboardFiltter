@@ -1,6 +1,5 @@
 import os
 import sys
-import certifi
 from pymongo import MongoClient
 
 # MongoDB connection settings from environment variables
@@ -41,18 +40,14 @@ def get_client():
     """Get or create main MongoDB client (singleton pattern)."""
     global _client
     if _client is None:
+        # Minimal config for serverless
         _client = MongoClient(
             MONGO_URI,
-            tls=True,
-            tlsCAFile=certifi.where(),
-            tlsAllowInvalidCertificates=False,
-            serverSelectionTimeoutMS=30000,
-            connectTimeoutMS=30000,
-            socketTimeoutMS=30000,
+            serverSelectionTimeoutMS=10000,
+            connectTimeoutMS=10000,
+            socketTimeoutMS=10000,
             maxPoolSize=1,
-            minPoolSize=0,
-            retryWrites=True,
-            retryReads=True
+            minPoolSize=0
         )
     return _client
 
@@ -60,18 +55,14 @@ def get_teams_client():
     """Get or create teams MongoDB client (singleton pattern)."""
     global _teams_client
     if _teams_client is None:
+        # Minimal config for serverless
         _teams_client = MongoClient(
             TEAMS_MONGO_URI,
-            tls=True,
-            tlsCAFile=certifi.where(),
-            tlsAllowInvalidCertificates=False,
-            serverSelectionTimeoutMS=30000,
-            connectTimeoutMS=30000,
-            socketTimeoutMS=30000,
+            serverSelectionTimeoutMS=10000,
+            connectTimeoutMS=10000,
+            socketTimeoutMS=10000,
             maxPoolSize=1,
-            minPoolSize=0,
-            retryWrites=True,
-            retryReads=True
+            minPoolSize=0
         )
     return _teams_client
 
