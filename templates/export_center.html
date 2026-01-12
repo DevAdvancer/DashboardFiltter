@@ -32,61 +32,61 @@
             Quick Export Templates
         </h3>
         <div class="export-templates-grid">
-            <div class="export-template-card card" onclick="quickExport('all_candidates')">
+            <div class="export-template-card card" onclick="quickExportExcel('interview_records')">
                 <div class="template-icon blue">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
-                        <circle cx="9" cy="7" r="4"/>
-                        <path d="M23 21v-2a4 4 0 00-3-3.87"/>
-                        <path d="M16 3.13a4 4 0 010 7.75"/>
+                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                        <polyline points="14,2 14,8 20,8"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/>
+                        <line x1="16" y1="17" x2="8" y2="17"/>
                     </svg>
                 </div>
                 <div class="template-content">
-                    <h4>All Candidates</h4>
-                    <p>Complete candidate database</p>
-                    <span class="template-badge">Full Export</span>
+                    <h4>Interview Records</h4>
+                    <p>All interview records with team & expert</p>
+                    <span class="template-badge">Excel Export</span>
                 </div>
             </div>
 
-            <div class="export-template-card card" onclick="quickExport('active_pipeline')">
+            <div class="export-template-card card" onclick="quickExportExcel('team_summary')">
                 <div class="template-icon green">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/>
+                        <circle cx="9" cy="7" r="3"/>
+                        <circle cx="15" cy="7" r="3"/>
+                        <path d="M3 18c0-3 3-5 6-5 1.5 0 3 .5 4 1.5M15 13c3 0 6 2 6 5"/>
                     </svg>
                 </div>
                 <div class="template-content">
-                    <h4>Active Pipeline</h4>
-                    <p>Currently active candidates</p>
-                    <span class="template-badge">Filtered</span>
+                    <h4>Team Summary</h4>
+                    <p>Team performance with interview stats</p>
+                    <span class="template-badge">Excel Export</span>
                 </div>
             </div>
 
-            <div class="export-template-card card" onclick="quickExport('completed_interviews')">
+            <div class="export-template-card card" onclick="quickExportExcel('funnel_combined')">
                 <div class="template-icon purple">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
-                        <polyline points="22,4 12,14.01 9,11.01"/>
+                        <path d="M3 4h18l-6 8v6l-6 2V12L3 4z"/>
                     </svg>
                 </div>
                 <div class="template-content">
-                    <h4>Completed Interviews</h4>
-                    <p>All completed interview records</p>
-                    <span class="template-badge">Interview Data</span>
+                    <h4>Funnel Combined</h4>
+                    <p>Expert & team funnel in separate sheets</p>
+                    <span class="template-badge">Excel Export</span>
                 </div>
             </div>
 
-            <div class="export-template-card card" onclick="quickExport('analytics_summary')">
+            <div class="export-template-card card" onclick="quickExportExcel('experts')">
                 <div class="template-icon orange">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="18" y1="20" x2="18" y2="10"/>
-                        <line x1="12" y1="20" x2="12" y2="4"/>
-                        <line x1="6" y1="20" x2="6" y2="14"/>
+                        <circle cx="12" cy="8" r="4"/>
+                        <path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
                     </svg>
                 </div>
                 <div class="template-content">
-                    <h4>Analytics Summary</h4>
-                    <p>Aggregated statistics report</p>
-                    <span class="template-badge">Report</span>
+                    <h4>Expert Analytics</h4>
+                    <p>Expert funnel performance data</p>
+                    <span class="template-badge">Excel Export</span>
                 </div>
             </div>
         </div>
@@ -402,6 +402,56 @@ function quickExport(template) {
 
     // Execute export
     executeExport();
+}
+
+// Quick Export Excel Functions
+async function quickExportExcel(exportType) {
+    showLoading(`Preparing Excel export...`);
+
+    try {
+        const formData = new FormData();
+        formData.append('export_type', exportType);
+        formData.append('format', 'excel');
+        formData.append('start_date', '{{ start_date }}');
+        formData.append('end_date', '{{ end_date }}');
+
+        const response = await fetch('{{ url_for("analytics.export_download") }}', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) {
+            throw new Error('Export failed');
+        }
+
+        // Get filename from Content-Disposition header
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = 'export.xlsx';
+        if (contentDisposition) {
+            const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(contentDisposition);
+            if (matches != null && matches[1]) {
+                filename = matches[1].replace(/['"]/g, '');
+            }
+        }
+
+        // Download the file
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        hideLoading();
+        showSuccessToast(`Excel file downloaded: ${filename}`);
+    } catch (error) {
+        hideLoading();
+        alert('Export failed: ' + error.message);
+        console.error('Export error:', error);
+    }
 }
 
 // Reset Filters

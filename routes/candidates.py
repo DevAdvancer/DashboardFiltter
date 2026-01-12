@@ -1,8 +1,10 @@
 
-from flask import Blueprint, render_template, request, current_app
-from db import get_db
+from flask import Blueprint, render_template, request, current_app, send_file
+from db import get_db, get_teams_db
 from datetime import datetime, timedelta
-from collections import Counter
+from collections import Counter, defaultdict
+import pandas as pd
+from io import BytesIO
 
 candidates_bp = Blueprint('candidates', __name__)
 
@@ -155,6 +157,367 @@ def candidate_lookup():
         candidate_name=candidate_name,
         candidate_data=candidate_data,
         interview_records=interview_records
+    )
+
+
+@candidates_bp.route('/expert-activity', methods=['GET'])
+def expert_candidate_activity():
+    """
+    Expert Candidate Activity Dashboard
+    Shows which experts have active candidates based on interview counts in a date range.
+
+    Filters:
+    - min_interviews: Minimum number of interviews to be considered "active" (default: 1, which means > 0)
+    - months: Number of months to look back (default: 3)
+    """
+    cache = current_app.cache
+
+    # Get filter parameters
+    try:
+        min_interviews = int(request.args.get('min_interviews', 1))
+    except ValueError:
+        min_interviews = 1
+
+    try:
+        months = int(request.args.get('months', 3))
+    except ValueError:
+        months = 3
+
+    # Cache the data
+    @cache.memoize(timeout=300)
+    def get_expert_activity_data(min_interviews, months):
+        db = get_db()
+        teams_db = get_teams_db()
+
+        # Get teams
+        teams_cursor = teams_db.teams.find({}, {"name": 1, "members": 1, "_id": 0})
+        teams_map = {t['name']: t.get('members', []) for t in teams_cursor}
+
+        # Create expert to team mapping
+        expert_to_team = {}
+        for team_name, members in teams_map.items():
+            for member in members:
+                expert_to_team[str(member).lower()] = team_name
+
+        # Calculate date range
+        end_date = datetime.utcnow()
+        start_date = end_date - timedelta(days=months * 30)
+        start_date_str = start_date.strftime('%Y-%m-%dT%H:%M:%S')
+        end_date_str = end_date.strftime('%Y-%m-%dT%H:%M:%S')
+
+        # OPTIMIZED: Query taskBody first to get interview counts by candidate
+        interview_pipeline = [
+            {
+                "$match": {
+                    "Candidate Name": {"$type": "string", "$ne": ""},
+                    "receivedDateTime": {"$gte": start_date_str, "$lte": end_date_str}
+                }
+            },
+            {
+                "$group": {
+                    "_id": "$Candidate Name",
+                    "InterviewCount": {"$sum": 1}
+                }
+            }
+        ]
+
+        interview_results = list(db.taskBody.aggregate(interview_pipeline))
+        candidate_interview_map = {r['_id']: r['InterviewCount'] for r in interview_results}
+
+        # Get all candidates with their experts
+        candidates = list(db.candidateDetails.find(
+            {"Candidate Name": {"$type": "string", "$ne": ""}},
+            {"Candidate Name": 1, "Expert": 1, "_id": 0}
+        ))
+
+        # Build per_candidate and per_expert lists
+        per_candidate = []
+        expert_stats = defaultdict(lambda: {"ActiveCandidates": 0, "InactiveCandidates": 0, "TotalCandidates": 0})
+        active_candidates_by_expert = defaultdict(list)
+
+        for cand in candidates:
+            cand_name = cand.get("Candidate Name", "")
+            expert = cand.get("Expert", "")
+            expert_lower = expert.lower() if expert else ""
+
+            interview_count = candidate_interview_map.get(cand_name, 0)
+            is_active = interview_count >= min_interviews
+
+            per_candidate.append({
+                "CandidateName": cand_name,
+                "Expert": expert,
+                "ExpertLower": expert_lower,
+                "InterviewCount": interview_count,
+                "isActive": is_active
+            })
+
+            # Update expert stats
+            expert_stats[expert_lower]["TotalCandidates"] += 1
+            if is_active:
+                expert_stats[expert_lower]["ActiveCandidates"] += 1
+                active_candidates_by_expert[expert_lower].append({
+                    "CandidateName": cand_name,
+                    "InterviewCount": interview_count
+                })
+            else:
+                expert_stats[expert_lower]["InactiveCandidates"] += 1
+
+        # Sort per_candidate
+        per_candidate.sort(key=lambda x: (x["InterviewCount"], x["CandidateName"]), reverse=True)
+
+        # Convert expert_stats to list format
+        per_expert = [
+            {"_id": expert, **stats}
+            for expert, stats in expert_stats.items()
+        ]
+        per_expert.sort(key=lambda x: (x["ActiveCandidates"], x["TotalCandidates"]), reverse=True)
+
+        # Map expert summaries (already created above)
+        expert_summary = {(e.get("_id") or "").lower(): e for e in per_expert}
+
+        # Build team data
+        team_data = []
+        for team_name, members in teams_map.items():
+            team_active = team_inactive = team_total = 0
+            expert_list = []
+
+            for expert in members:
+                key = expert.lower()
+                e = expert_summary.get(key, {})
+                active_cnt = e.get("ActiveCandidates", 0)
+                inactive_cnt = e.get("InactiveCandidates", 0)
+                total_cnt = e.get("TotalCandidates", 0)
+
+                team_active += active_cnt
+                team_inactive += inactive_cnt
+                team_total += total_cnt
+
+                # Get active candidate list
+                active_list = active_candidates_by_expert.get(key, [])
+                active_list = sorted(
+                    active_list,
+                    key=lambda x: x.get("InterviewCount", 0),
+                    reverse=True
+                )
+
+                expert_list.append({
+                    'expert': expert,
+                    'total': total_cnt,
+                    'active': active_cnt,
+                    'inactive': inactive_cnt,
+                    'active_candidates': active_list
+                })
+
+            # Sort experts by active candidates
+            expert_list.sort(key=lambda x: x['active'], reverse=True)
+
+            team_data.append({
+                'team': team_name,
+                'total': team_total,
+                'active': team_active,
+                'inactive': team_inactive,
+                'experts': expert_list
+            })
+
+        # Sort teams by active candidates
+        team_data.sort(key=lambda x: x['active'], reverse=True)
+
+        # Calculate overall stats
+        overall_total = sum(t['total'] for t in team_data)
+        overall_active = sum(t['active'] for t in team_data)
+        overall_inactive = sum(t['inactive'] for t in team_data)
+
+        summary = {
+            'total_candidates': overall_total,
+            'active_candidates': overall_active,
+            'inactive_candidates': overall_inactive,
+            'teams_count': len(team_data),
+            'date_range': f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
+        }
+
+        return team_data, summary, start_date, end_date
+
+    team_data, summary, start_date, end_date = get_expert_activity_data(min_interviews, months)
+
+    return render_template(
+        'expert_activity.html',
+        team_data=team_data,
+        summary=summary,
+        min_interviews=min_interviews,
+        months=months,
+        start_date=start_date.strftime('%Y-%m-%d'),
+        end_date=end_date.strftime('%Y-%m-%d')
+    )
+
+
+@candidates_bp.route('/expert-activity/export', methods=['GET'])
+def export_expert_activity():
+    """Export expert candidate activity to Excel."""
+    db = get_db()
+    teams_db = get_teams_db()
+
+    # Get filter parameters
+    try:
+        min_interviews = int(request.args.get('min_interviews', 1))
+    except ValueError:
+        min_interviews = 1
+
+    try:
+        months = int(request.args.get('months', 3))
+    except ValueError:
+        months = 3
+
+    # Get teams
+    teams_cursor = teams_db.teams.find({}, {"name": 1, "members": 1, "_id": 0})
+    teams_map = {t['name']: t.get('members', []) for t in teams_cursor}
+
+    # Create expert to team mapping
+    expert_to_team = {}
+    for team_name, members in teams_map.items():
+        for member in members:
+            expert_to_team[str(member).lower()] = team_name
+
+    # Calculate date range
+    end_date = datetime.utcnow()
+    start_date = end_date - timedelta(days=months * 30)
+    start_date_str = start_date.strftime('%Y-%m-%dT%H:%M:%S')
+    end_date_str = end_date.strftime('%Y-%m-%dT%H:%M:%S')
+
+    # OPTIMIZED: Same as the view function
+    interview_pipeline = [
+        {
+            "$match": {
+                "Candidate Name": {"$type": "string", "$ne": ""},
+                "receivedDateTime": {"$gte": start_date_str, "$lte": end_date_str}
+            }
+        },
+        {
+            "$group": {
+                "_id": "$Candidate Name",
+                "InterviewCount": {"$sum": 1}
+            }
+        }
+    ]
+
+    interview_results = list(db.taskBody.aggregate(interview_pipeline))
+    candidate_interview_map = {r['_id']: r['InterviewCount'] for r in interview_results}
+
+    # Get all candidates with their experts
+    candidates = list(db.candidateDetails.find(
+        {"Candidate Name": {"$type": "string", "$ne": ""}},
+        {"Candidate Name": 1, "Expert": 1, "_id": 0}
+    ))
+
+    # Build data structures
+    expert_stats = defaultdict(lambda: {"ActiveCandidates": 0, "InactiveCandidates": 0, "TotalCandidates": 0})
+    active_candidates_by_expert = defaultdict(list)
+
+    for cand in candidates:
+        cand_name = cand.get("Candidate Name", "")
+        expert = cand.get("Expert", "")
+        expert_lower = expert.lower() if expert else ""
+
+        interview_count = candidate_interview_map.get(cand_name, 0)
+        is_active = interview_count >= min_interviews
+
+        expert_stats[expert_lower]["TotalCandidates"] += 1
+        if is_active:
+            expert_stats[expert_lower]["ActiveCandidates"] += 1
+            active_candidates_by_expert[expert_lower].append({
+                "CandidateName": cand_name,
+                "InterviewCount": interview_count
+            })
+        else:
+            expert_stats[expert_lower]["InactiveCandidates"] += 1
+
+    # Map expert summaries
+    expert_summary = {expert: stats for expert, stats in expert_stats.items()}
+
+    # Build Excel data
+    summary_rows = []
+    active_rows = []
+
+    for team_name, members in teams_map.items():
+        for expert in members:
+            key = expert.lower()
+            e = expert_summary.get(key, {})
+            active_cnt = e.get("ActiveCandidates", 0)
+            inactive_cnt = e.get("InactiveCandidates", 0)
+            total_cnt = e.get("TotalCandidates", 0)
+
+            summary_rows.append({
+                "Team": team_name,
+                "Expert": expert,
+                "TotalCandidates": total_cnt,
+                "ActiveCandidates": active_cnt,
+                "InactiveCandidates": inactive_cnt,
+            })
+
+            # Active candidates for this expert
+            active_list = active_candidates_by_expert.get(key, [])
+            active_list = sorted(
+                active_list,
+                key=lambda x: x.get("InterviewCount", 0),
+                reverse=True
+            )
+
+            for c in active_list:
+                active_rows.append({
+                    "Team": team_name,
+                    "Expert": expert,
+                    "CandidateName": c.get("CandidateName", ""),
+                    "InterviewCount": c.get("InterviewCount", 0),
+                })
+
+    # Handle experts without team mapping
+    other_experts = [k for k in expert_summary.keys() if k not in expert_to_team]
+    for key in other_experts:
+        e = expert_summary[key]
+        active_cnt = e["ActiveCandidates"]
+        inactive_cnt = e["InactiveCandidates"]
+        total_cnt = e["TotalCandidates"]
+
+        summary_rows.append({
+            "Team": "NO TEAM",
+            "Expert": key,
+            "TotalCandidates": total_cnt,
+            "ActiveCandidates": active_cnt,
+            "InactiveCandidates": inactive_cnt,
+        })
+
+        active_list = active_candidates_by_expert.get(key, [])
+        active_list = sorted(
+            active_list,
+            key=lambda x: x.get("InterviewCount", 0),
+            reverse=True
+        )
+
+        for c in active_list:
+            active_rows.append({
+                "Team": "NO TEAM",
+                "Expert": key,
+                "CandidateName": c.get("CandidateName", ""),
+                "InterviewCount": c.get("InterviewCount", 0),
+            })
+
+    # Create DataFrames
+    summary_df = pd.DataFrame(summary_rows)
+    active_df = pd.DataFrame(active_rows)
+
+    # Create Excel file in memory
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        summary_df.to_excel(writer, sheet_name='Summary', index=False)
+        active_df.to_excel(writer, sheet_name='ActiveCandidates', index=False)
+    output.seek(0)
+
+    filename = f"expert_candidate_activity_{start_date.strftime('%Y-%m-%d')}_to_{end_date.strftime('%Y-%m-%d')}.xlsx"
+
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=filename
     )
 
 

@@ -1,0 +1,320 @@
+{% extends 'base.html' %}
+{% block page_title %}Expert Candidate Activity - InterviewOS{% endblock %}
+{% block title %}Expert Candidate Activity{% endblock %}
+
+{% block content %}
+<div class="page-content">
+    <!-- Filters Card -->
+    <div class="card filters-card">
+        <form method="GET" action="{{ url_for('candidates.expert_candidate_activity') }}" class="filters-form" id="filters-form">
+            <div class="filters-row">
+                <div class="filter-item">
+                    <label>
+                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <line x1="18" y1="20" x2="18" y2="10"/>
+                            <line x1="12" y1="20" x2="12" y2="4"/>
+                            <line x1="6" y1="20" x2="6" y2="14"/>
+                        </svg>
+                        Min Interviews
+                    </label>
+                    <input type="number"
+                           name="min_interviews"
+                           value="{{ min_interviews }}"
+                           min="0"
+                           class="text-input"
+                           placeholder="e.g., 1">
+                    <span class="filter-hint">Candidates with at least this many interviews are "active"</span>
+                </div>
+                <div class="filter-item">
+                    <label>
+                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <rect x="3" y="4" width="18" height="18" rx="2"/>
+                            <line x1="16" y1="2" x2="16" y2="6"/>
+                            <line x1="8" y1="2" x2="8" y2="6"/>
+                            <line x1="3" y1="10" x2="21" y2="10"/>
+                        </svg>
+                        Time Period (Months)
+                    </label>
+                    <input type="number"
+                           name="months"
+                           value="{{ months }}"
+                           min="1"
+                           max="24"
+                           class="text-input"
+                           placeholder="e.g., 3">
+                    <span class="filter-hint">Look back this many months from today</span>
+                </div>
+                <div class="filter-actions">
+                    <button type="submit" class="btn btn-primary">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <polyline points="23 4 23 10 17 10"/>
+                            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                        </svg>
+                        Apply Filters
+                    </button>
+                    <a href="{{ url_for('candidates.expert_candidate_activity') }}" class="btn btn-ghost">Reset</a>
+                    <a href="{{ url_for('candidates.export_expert_activity', min_interviews=min_interviews, months=months) }}"
+                       class="btn btn-success">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                            <polyline points="7,10 12,15 17,10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Export Excel
+                    </a>
+                </div>
+            </div>
+
+            <!-- Quick Select Filters -->
+            <div class="quick-select-filters">
+                <span class="quick-select-label">Quick Select:</span>
+                <button type="button" class="quick-btn" data-months="1">Last Month</button>
+                <button type="button" class="quick-btn" data-months="3">Last 3 Months</button>
+                <button type="button" class="quick-btn" data-months="6">Last 6 Months</button>
+                <button type="button" class="quick-btn" data-months="12">Last Year</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="stats-row">
+        <div class="stat-card">
+            <div class="stat-icon" style="background: var(--primary-light); color: var(--primary);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+            </div>
+            <div class="stat-content">
+                <span class="stat-value">{{ summary.total_candidates }}</span>
+                <span class="stat-label">Total Candidates</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background: var(--green-light); color: var(--green);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                    <polyline points="22 4 12 14.01 9 11.01"/>
+                </svg>
+            </div>
+            <div class="stat-content">
+                <span class="stat-value">{{ summary.active_candidates }}</span>
+                <span class="stat-label">Active Candidates</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background: var(--red-light); color: var(--red);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="15" y1="9" x2="9" y2="15"/>
+                    <line x1="9" y1="9" x2="15" y2="15"/>
+                </svg>
+            </div>
+            <div class="stat-content">
+                <span class="stat-value">{{ summary.inactive_candidates }}</span>
+                <span class="stat-label">Inactive Candidates</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background: var(--purple-light); color: var(--purple);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <rect x="3" y="3" width="7" height="7" rx="2"/>
+                    <rect x="14" y="3" width="7" height="7" rx="2"/>
+                    <rect x="3" y="14" width="7" height="7" rx="2"/>
+                    <rect x="14" y="14" width="7" height="7" rx="2"/>
+                </svg>
+            </div>
+            <div class="stat-content">
+                <span class="stat-value">{{ summary.teams_count }}</span>
+                <span class="stat-label">Teams</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Team Activity Cards -->
+    {% for team in team_data %}
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <circle cx="9" cy="7" r="3"/>
+                    <circle cx="15" cy="7" r="3"/>
+                    <path d="M3 18c0-3 3-5 6-5 1.5 0 3 .5 4 1.5M15 13c3 0 6 2 6 5"/>
+                </svg>
+                {{ team.team }}
+            </h3>
+            <div class="card-badges">
+                <span class="badge badge-subtle">Total: {{ team.total }}</span>
+                <span class="badge badge-success">Active: {{ team.active }}</span>
+                <span class="badge badge-danger">Inactive: {{ team.inactive }}</span>
+            </div>
+        </div>
+
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Expert</th>
+                        <th class="text-center">Total</th>
+                        <th class="text-center">Active</th>
+                        <th class="text-center">Inactive</th>
+                        <th>Active Candidates</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for expert in team.experts %}
+                    <tr>
+                        <td>
+                            <div class="expert-cell">
+                                <div class="expert-avatar small">{{ expert.expert[0]|upper }}</div>
+                                <span>{{ expert.expert.split('@')[0] if '@' in expert.expert else expert.expert }}</span>
+                            </div>
+                        </td>
+                        <td class="text-center text-bold">{{ expert.total }}</td>
+                        <td class="text-center">
+                            <span class="badge badge-success">{{ expert.active }}</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge badge-danger">{{ expert.inactive }}</span>
+                        </td>
+                        <td>
+                            {% if expert.active_candidates %}
+                            <details class="candidate-details">
+                                <summary class="candidate-summary">
+                                    {{ expert.active_candidates|length }} active candidate(s)
+                                    <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                        <polyline points="6 9 12 15 18 9"/>
+                                    </svg>
+                                </summary>
+                                <div class="candidate-list">
+                                    {% for candidate in expert.active_candidates %}
+                                    <div class="candidate-item">
+                                        <span class="candidate-name">{{ candidate.CandidateName }}</span>
+                                        <span class="candidate-count">{{ candidate.InterviewCount }} interviews</span>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </details>
+                            {% else %}
+                            <span class="text-muted">No active candidates</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- Date Range Info -->
+    <div class="info-banner">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="20" height="20">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="16" x2="12" y2="12"/>
+            <line x1="12" y1="8" x2="12.01" y2="8"/>
+        </svg>
+        <span>Showing candidates with <strong>{{ min_interviews }}+ interviews</strong> from <strong>{{ start_date }}</strong> to <strong>{{ end_date }}</strong></span>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Quick select filters for months
+document.querySelectorAll('.quick-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const months = this.dataset.months;
+        document.querySelector('input[name="months"]').value = months;
+        document.getElementById('filters-form').submit();
+    });
+});
+
+// Smooth details animation
+document.querySelectorAll('.candidate-details').forEach(details => {
+    details.addEventListener('toggle', function() {
+        if (this.open) {
+            this.querySelector('.candidate-list').style.animation = 'slideDown 0.3s ease';
+        }
+    });
+});
+</script>
+
+<style>
+.card-badges {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.candidate-details {
+    cursor: pointer;
+}
+
+.candidate-summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--primary);
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+}
+
+.candidate-summary:hover {
+    color: var(--primary-hover);
+}
+
+.chevron {
+    transition: transform 0.3s ease;
+}
+
+details[open] .chevron {
+    transform: rotate(180deg);
+}
+
+.candidate-list {
+    margin-top: 12px;
+    padding-left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.candidate-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: var(--bg-elevated);
+    border-radius: 6px;
+    border-left: 3px solid var(--primary);
+}
+
+.candidate-name {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.candidate-count {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    background: var(--surface);
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+</style>
+{% endblock %}

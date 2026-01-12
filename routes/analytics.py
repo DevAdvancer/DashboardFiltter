@@ -1,7 +1,9 @@
-from flask import Blueprint, render_template, request, jsonify, current_app
+from flask import Blueprint, render_template, request, jsonify, current_app, send_file
 from db import get_db, get_teams_db
 from datetime import datetime
 from collections import Counter, defaultdict
+import pandas as pd
+from io import BytesIO
 
 analytics_bp = Blueprint('analytics', __name__)
 
@@ -911,30 +913,361 @@ def export_center():
 
 @analytics_bp.route('/export/download', methods=['POST'])
 def export_download():
-    """Handle export downloads."""
+    """Handle export downloads with Excel support."""
     db = get_db()
 
     start_date = request.form.get('start_date', '')
     end_date = request.form.get('end_date', '')
     export_type = request.form.get('export_type', 'experts')
+    export_format = request.form.get('format', 'json')
     filter_team = request.form.get('team', '') or None
     filter_expert = request.form.get('expert', '') or None
 
-    if export_type == 'experts':
+    # Get active experts
+    active_experts = get_active_experts(db)
+    expert_team_map, teams_map = get_expert_team_map(db)
+
+    if export_type == 'interview_records':
+        # EXPORT TYPE 1: Interview Records with Team, Expert, ReceivedDateTime
+        return export_interview_records_excel(db, start_date, end_date, filter_team, filter_expert,
+                                             active_experts, expert_team_map, teams_map)
+
+    elif export_type == 'team_summary':
+        # EXPORT TYPE 2: Team Summary with Team, Expert
+        return export_team_summary_excel(db, start_date, end_date, filter_team, filter_expert,
+                                        active_experts, expert_team_map, teams_map)
+
+    elif export_type == 'funnel_combined':
+        # EXPORT TYPE 3: Expert & Team Funnel in separate sheets
+        return export_funnel_combined_excel(db, start_date, end_date, filter_team, filter_expert)
+
+    elif export_type == 'experts':
         expert_stats, _ = get_expert_funnel_data(db, start_date, end_date, filter_team, filter_expert)
+        if export_format == 'excel':
+            return export_experts_excel(expert_stats, start_date, end_date)
         return jsonify({
             'success': True,
             'type': 'experts',
             'count': len(expert_stats),
             'data': expert_stats
         })
+
     elif export_type == 'teams':
         team_stats, _ = get_team_funnel_data(db, start_date, end_date, filter_team, filter_expert)
+        if export_format == 'excel':
+            return export_teams_excel(team_stats, start_date, end_date)
         return jsonify({
             'success': True,
             'type': 'teams',
             'count': len(team_stats),
             'data': team_stats
         })
+
     else:
         return jsonify({'success': False, 'error': 'Invalid export type'})
+
+
+def export_interview_records_excel(db, start_date, end_date, filter_team, filter_expert,
+                                   active_experts, expert_team_map, teams_map):
+    """
+    EXPORT TYPE 1: Interview Records
+    Columns: Team, Expert, Subject, Candidate, Round, ReceivedDateTime, Status
+    """
+    # Build query
+    match_filters = build_task_query(start_date, end_date)
+
+    # Get interview records
+    records = list(db.taskBody.find(
+        match_filters,
+        {
+            "assignedTo": 1,
+            "subject": 1,
+            "Candidate Name": 1,
+            "actualRound": 1,
+            "receivedDateTime": 1,
+            "status": 1,
+            "_id": 0
+        }
+    ).limit(10000))
+
+    excel_rows = []
+    for r in records:
+        expert = r.get('assignedTo', '')
+
+        # Skip inactive experts
+        if str(expert).lower() not in active_experts:
+            continue
+
+        # Get team
+        team = expert_team_map.get(str(expert).lower(), "Unmapped")
+
+        # Apply filters
+        if filter_team and team != filter_team:
+            continue
+        if filter_expert and expert != filter_expert:
+            continue
+
+        excel_rows.append({
+            'Team': team,
+            'Expert': expert,
+            'Subject': r.get('subject', ''),
+            'Candidate': r.get('Candidate Name', ''),
+            'Round': r.get('actualRound', ''),
+            'ReceivedDateTime': r.get('receivedDateTime', ''),
+            'Status': r.get('status', '')
+        })
+
+    if not excel_rows:
+        return jsonify({'success': False, 'error': 'No records found for the given filters'})
+
+    # Create DataFrame and sort
+    df = pd.DataFrame(excel_rows)
+    df = df.sort_values(by=["Team", "Expert", "ReceivedDateTime"], ascending=[True, True, True])
+
+    # Create Excel file in memory
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name='Interview_Records', index=False)
+    output.seek(0)
+
+    # Generate filename
+    start_str = start_date[:10] if start_date else 'all'
+    end_str = end_date[:10] if end_date else 'all'
+    filename = f"interviews_{start_str}_to_{end_str}.xlsx"
+
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=filename
+    )
+
+
+def export_team_summary_excel(db, start_date, end_date, filter_team, filter_expert,
+                              active_experts, expert_team_map, teams_map):
+    """
+    EXPORT TYPE 2: Team Summary
+    Columns: Team, Expert, Total_Interviews, Completed, Cancelled, Rescheduled
+    """
+    # Build query
+    match_filters = build_task_query(start_date, end_date)
+    match_filters["status"] = {"$in": ["Completed", "Cancelled", "Rescheduled"]}
+
+    # Get interview stats by expert
+    pipeline = [
+        {"$match": match_filters},
+        {
+            "$group": {
+                "_id": {
+                    "expert": "$assignedTo",
+                    "status": "$status"
+                },
+                "count": {"$sum": 1}
+            }
+        }
+    ]
+
+    results = list(db.taskBody.aggregate(pipeline))
+
+    # Process results
+    expert_stats = {}
+    for r in results:
+        expert = r['_id']['expert']
+        status = r['_id']['status']
+        count = r['count']
+
+        # Skip inactive experts
+        if str(expert).lower() not in active_experts:
+            continue
+
+        if expert not in expert_stats:
+            expert_stats[expert] = {'Completed': 0, 'Cancelled': 0, 'Rescheduled': 0}
+
+        expert_stats[expert][status] = count
+
+    excel_rows = []
+    for expert, stats in expert_stats.items():
+        team = expert_team_map.get(str(expert).lower(), "Unmapped")
+
+        # Apply filters
+        if filter_team and team != filter_team:
+            continue
+        if filter_expert and expert != filter_expert:
+            continue
+
+        total = stats['Completed'] + stats['Cancelled'] + stats['Rescheduled']
+
+        excel_rows.append({
+            'Team': team,
+            'Expert': expert,
+            'Total_Interviews': total,
+            'Completed': stats['Completed'],
+            'Cancelled': stats['Cancelled'],
+            'Rescheduled': stats['Rescheduled']
+        })
+
+    if not excel_rows:
+        return jsonify({'success': False, 'error': 'No data to export for the given filters'})
+
+    # Create DataFrame and sort
+    df = pd.DataFrame(excel_rows)
+    df = df.sort_values(by=["Team", "Expert"], ascending=[True, True])
+
+    # Create Excel file
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name='Team_Summary', index=False)
+    output.seek(0)
+
+    start_str = start_date[:10] if start_date else 'all'
+    end_str = end_date[:10] if end_date else 'all'
+    filename = f"team_summary_{start_str}_to_{end_str}.xlsx"
+
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=filename
+    )
+
+
+def export_funnel_combined_excel(db, start_date, end_date, filter_team, filter_expert):
+    """
+    EXPORT TYPE 3 & 4: Expert & Team Funnel Combined
+    Two sheets: Expert_Funnel and Team_Funnel
+    """
+    # Get expert and team funnel data
+    expert_stats, _ = get_expert_funnel_data(db, start_date, end_date, filter_team, filter_expert)
+    team_stats, _ = get_team_funnel_data(db, start_date, end_date, filter_team, filter_expert)
+
+    # Create expert DataFrame
+    expert_rows = []
+    for exp in expert_stats:
+        expert_rows.append({
+            'Rank': exp.get('rank', 0),
+            'Expert': exp.get('expert', ''),
+            'Team': exp.get('team', ''),
+            'Screening': exp.get('screening', 0),
+            '1st': exp.get('first', 0),
+            '2nd': exp.get('second', 0),
+            '3rd/Technical': exp.get('third_tech', 0),
+            'Final': exp.get('final', 0),
+            'Total_Interviews': exp.get('interview_count', 0),
+            'Screening_to_1st_%': exp.get('screening_to_1st', 0),
+            '1st_to_2nd_%': exp.get('first_to_2nd', 0),
+            '2nd_to_3rd_%': exp.get('second_to_3rd', 0),
+            '3rd_to_Final_%': exp.get('third_to_final', 0)
+        })
+
+    # Create team DataFrame
+    team_rows = []
+    for team in team_stats:
+        team_rows.append({
+            'Rank': team.get('rank', 0),
+            'Team': team.get('team', ''),
+            'Members': team.get('member_count', 0),
+            'Screening': team.get('screening', 0),
+            '1st': team.get('first', 0),
+            '2nd': team.get('second', 0),
+            '3rd/Technical': team.get('third_tech', 0),
+            'Final': team.get('final', 0),
+            'Total_Interviews': team.get('interview_count', 0),
+            'Screening_to_1st_%': team.get('screening_to_1st', 0),
+            '1st_to_2nd_%': team.get('first_to_2nd', 0),
+            '2nd_to_3rd_%': team.get('second_to_3rd', 0),
+            '3rd_to_Final_%': team.get('third_to_final', 0)
+        })
+
+    if not expert_rows and not team_rows:
+        return jsonify({'success': False, 'error': 'No funnel data available'})
+
+    expert_df = pd.DataFrame(expert_rows)
+    team_df = pd.DataFrame(team_rows)
+
+    # Create Excel file with multiple sheets
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        if not expert_df.empty:
+            expert_df.to_excel(writer, sheet_name='Expert_Funnel', index=False)
+        if not team_df.empty:
+            team_df.to_excel(writer, sheet_name='Team_Funnel', index=False)
+    output.seek(0)
+
+    filename = "expert_team_conversion_funnel.xlsx"
+
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=filename
+    )
+
+
+def export_experts_excel(expert_stats, start_date, end_date):
+    """Simple expert funnel export."""
+    rows = []
+    for exp in expert_stats:
+        rows.append({
+            'Rank': exp.get('rank', 0),
+            'Expert': exp.get('expert', ''),
+            'Team': exp.get('team', ''),
+            'Screening': exp.get('screening', 0),
+            '1st': exp.get('first', 0),
+            '2nd': exp.get('second', 0),
+            '3rd/Technical': exp.get('third_tech', 0),
+            'Final': exp.get('final', 0),
+            'Total': exp.get('interview_count', 0),
+            'Conversion_%': exp.get('screening_to_1st', 0)
+        })
+
+    df = pd.DataFrame(rows)
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name='Experts', index=False)
+    output.seek(0)
+
+    start_str = start_date[:10] if start_date else 'all'
+    end_str = end_date[:10] if end_date else 'all'
+    filename = f"expert_analytics_{start_str}_to_{end_str}.xlsx"
+
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=filename
+    )
+
+
+def export_teams_excel(team_stats, start_date, end_date):
+    """Simple team funnel export."""
+    rows = []
+    for team in team_stats:
+        rows.append({
+            'Rank': team.get('rank', 0),
+            'Team': team.get('team', ''),
+            'Members': team.get('member_count', 0),
+            'Screening': team.get('screening', 0),
+            '1st': team.get('first', 0),
+            '2nd': team.get('second', 0),
+            '3rd/Technical': team.get('third_tech', 0),
+            'Final': team.get('final', 0),
+            'Total': team.get('interview_count', 0),
+            'Conversion_%': team.get('screening_to_1st', 0)
+        })
+
+    df = pd.DataFrame(rows)
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name='Teams', index=False)
+    output.seek(0)
+
+    start_str = start_date[:10] if start_date else 'all'
+    end_str = end_date[:10] if end_date else 'all'
+    filename = f"team_analytics_{start_str}_to_{end_str}.xlsx"
+
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=filename
+    )
