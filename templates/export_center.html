@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block page_title %}Export Center - InterviewOS{% endblock %}
+{% block page_title %}Export Center - MEGA DASHBOARD{% endblock %}
 {% block title %}Export Center{% endblock %}
 
 {% block content %}
@@ -10,9 +10,9 @@
         <div class="export-header-content">
             <div class="export-header-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                    <polyline points="7,10 12,15 17,10"/>
-                    <line x1="12" y1="15" x2="12" y2="3"/>
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                    <polyline points="7,10 12,15 17,10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
             </div>
             <div class="export-header-text">
@@ -26,19 +26,58 @@
     <div class="export-templates-section">
         <h3 class="section-title">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <polyline points="13,17 18,12 13,7"/>
-                <polyline points="6,17 11,12 6,7"/>
+                <polyline points="13,17 18,12 13,7" />
+                <polyline points="6,17 11,12 6,7" />
             </svg>
             Quick Export Templates
         </h3>
+
+        <!-- Date Range Preset Buttons -->
+        <div class="date-preset-buttons" style="margin-bottom: 16px; display: flex; gap: 8px; flex-wrap: wrap;">
+            <button type="button" class="btn btn-ghost btn-sm date-preset-btn" onclick="setDatePreset('this_month')"
+                style="border: 1px solid var(--border-primary);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                    <rect x="3" y="4" width="18" height="18" rx="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+                This Month
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm date-preset-btn" onclick="setDatePreset('previous_month')"
+                style="border: 1px solid var(--border-primary);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                    <polyline points="15,18 9,12 15,6" />
+                </svg>
+                Previous Month
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm date-preset-btn" onclick="setDatePreset('quarterly')"
+                style="border: 1px solid var(--border-primary);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+                </svg>
+                This Quarter
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm date-preset-btn" onclick="setDatePreset('yearly')"
+                style="border: 1px solid var(--border-primary);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12,6 12,12 16,14" />
+                </svg>
+                This Year
+            </button>
+            <span id="selectedPresetLabel"
+                style="color: var(--accent-primary); font-size: 12px; margin-left: 8px; display: none;"></span>
+        </div>
+
         <div class="export-templates-grid">
             <div class="export-template-card card" onclick="quickExportExcel('interview_records')">
                 <div class="template-icon blue">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                        <polyline points="14,2 14,8 20,8"/>
-                        <line x1="16" y1="13" x2="8" y2="13"/>
-                        <line x1="16" y1="17" x2="8" y2="17"/>
+                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                        <polyline points="14,2 14,8 20,8" />
+                        <line x1="16" y1="13" x2="8" y2="13" />
+                        <line x1="16" y1="17" x2="8" y2="17" />
                     </svg>
                 </div>
                 <div class="template-content">
@@ -51,9 +90,9 @@
             <div class="export-template-card card" onclick="quickExportExcel('team_summary')">
                 <div class="template-icon green">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="9" cy="7" r="3"/>
-                        <circle cx="15" cy="7" r="3"/>
-                        <path d="M3 18c0-3 3-5 6-5 1.5 0 3 .5 4 1.5M15 13c3 0 6 2 6 5"/>
+                        <circle cx="9" cy="7" r="3" />
+                        <circle cx="15" cy="7" r="3" />
+                        <path d="M3 18c0-3 3-5 6-5 1.5 0 3 .5 4 1.5M15 13c3 0 6 2 6 5" />
                     </svg>
                 </div>
                 <div class="template-content">
@@ -66,7 +105,7 @@
             <div class="export-template-card card" onclick="quickExportExcel('funnel_combined')">
                 <div class="template-icon purple">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M3 4h18l-6 8v6l-6 2V12L3 4z"/>
+                        <path d="M3 4h18l-6 8v6l-6 2V12L3 4z" />
                     </svg>
                 </div>
                 <div class="template-content">
@@ -79,8 +118,8 @@
             <div class="export-template-card card" onclick="quickExportExcel('experts')">
                 <div class="template-icon orange">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="8" r="4"/>
-                        <path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+                        <circle cx="12" cy="8" r="4" />
+                        <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
                     </svg>
                 </div>
                 <div class="template-content">
@@ -97,37 +136,55 @@
         <div class="card-header">
             <h3 class="card-title">
                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
                 </svg>
                 Custom Export Builder
             </h3>
             <button type="button" class="btn btn-ghost btn-sm" onclick="resetFilters()">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                    <polyline points="1,4 1,10 7,10"/>
-                    <polyline points="23,20 23,14 17,14"/>
-                    <path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/>
+                    <polyline points="1,4 1,10 7,10" />
+                    <polyline points="23,20 23,14 17,14" />
+                    <path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15" />
                 </svg>
                 Reset
             </button>
         </div>
 
         <form id="customExportForm" class="export-builder-form">
+            <!-- Export Type Selection -->
+            <div class="export-format-section" style="margin-bottom: 16px;">
+                <label class="section-label">
+                    <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                        <polyline points="14,2 14,8 20,8" />
+                    </svg>
+                    Export Type
+                </label>
+                <select name="export_type" class="filter-select" style="width: 100%; padding: 10px; margin-top: 8px;">
+                    <option value="interview_records">Interview Records (All records with team & expert)</option>
+                    <option value="team_summary">Team Summary (Completed/Cancelled/Rescheduled stats)</option>
+                    <option value="funnel_combined">Funnel Combined (Expert & Team conversion funnel)</option>
+                    <option value="experts">Expert Analytics (Expert performance data)</option>
+                    <option value="interview_stats">Interview Stats (Status breakdown per expert)</option>
+                </select>
+            </div>
+
             <!-- Format Selection -->
             <div class="export-format-section">
                 <label class="section-label">
                     <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                        <polyline points="14,2 14,8 20,8"/>
+                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                        <polyline points="14,2 14,8 20,8" />
                     </svg>
                     Export Format
                 </label>
                 <div class="format-options">
                     <label class="format-option">
-                        <input type="radio" name="format" value="json" checked>
+                        <input type="radio" name="format" value="excel" checked>
                         <div class="format-option-card">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                                <polyline points="14,2 14,8 20,8"/>
+                                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                                <polyline points="14,2 14,8 20,8" />
                             </svg>
                             <span>JSON</span>
                         </div>
@@ -136,10 +193,10 @@
                         <input type="radio" name="format" value="csv">
                         <div class="format-option-card">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                                <polyline points="14,2 14,8 20,8"/>
-                                <line x1="16" y1="13" x2="8" y2="13"/>
-                                <line x1="16" y1="17" x2="8" y2="17"/>
+                                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                                <polyline points="14,2 14,8 20,8" />
+                                <line x1="16" y1="13" x2="8" y2="13" />
+                                <line x1="16" y1="17" x2="8" y2="17" />
                             </svg>
                             <span>CSV</span>
                         </div>
@@ -148,9 +205,9 @@
                         <input type="radio" name="format" value="excel">
                         <div class="format-option-card">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                                <polyline points="14,2 14,8 20,8"/>
-                                <rect x="8" y="12" width="8" height="7"/>
+                                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                                <polyline points="14,2 14,8 20,8" />
+                                <rect x="8" y="12" width="8" height="7" />
                             </svg>
                             <span>Excel</span>
                         </div>
@@ -162,11 +219,12 @@
             <div class="export-filters-grid">
                 <div class="filter-group-section">
                     <label class="section-label">
-                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <rect x="3" y="4" width="18" height="18" rx="2"/>
-                            <line x1="16" y1="2" x2="16" y2="6"/>
-                            <line x1="8" y1="2" x2="8" y2="6"/>
-                            <line x1="3" y1="10" x2="21" y2="10"/>
+                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.5">
+                            <rect x="3" y="4" width="18" height="18" rx="2" />
+                            <line x1="16" y1="2" x2="16" y2="6" />
+                            <line x1="8" y1="2" x2="8" y2="6" />
+                            <line x1="3" y1="10" x2="21" y2="10" />
                         </svg>
                         Date Range
                     </label>
@@ -179,10 +237,11 @@
 
                 <div class="filter-group-section">
                     <label class="section-label">
-                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <circle cx="9" cy="7" r="3"/>
-                            <circle cx="15" cy="7" r="3"/>
-                            <path d="M3 18c0-3 3-5 6-5M15 13c3 0 6 2 6 5"/>
+                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.5">
+                            <circle cx="9" cy="7" r="3" />
+                            <circle cx="15" cy="7" r="3" />
+                            <path d="M3 18c0-3 3-5 6-5M15 13c3 0 6 2 6 5" />
                         </svg>
                         Team
                     </label>
@@ -196,9 +255,10 @@
 
                 <div class="filter-group-section">
                     <label class="section-label">
-                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <circle cx="12" cy="8" r="4"/>
-                            <path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.5">
+                            <circle cx="12" cy="8" r="4" />
+                            <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
                         </svg>
                         Expert
                     </label>
@@ -212,9 +272,10 @@
 
                 <div class="filter-group-section">
                     <label class="section-label">
-                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <circle cx="12" cy="12" r="10"/>
-                            <polyline points="12,6 12,12 16,14"/>
+                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.5">
+                            <circle cx="12" cy="12" r="10" />
+                            <polyline points="12,6 12,12 16,14" />
                         </svg>
                         Status
                     </label>
@@ -234,8 +295,8 @@
                 <div class="stats-preview-item">
                     <div class="stats-preview-icon blue">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
-                            <circle cx="12" cy="7" r="4"/>
+                            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+                            <circle cx="12" cy="7" r="4" />
                         </svg>
                     </div>
                     <div class="stats-preview-content">
@@ -247,7 +308,7 @@
                 <div class="stats-preview-item">
                     <div class="stats-preview-icon green">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+                            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
                         </svg>
                     </div>
                     <div class="stats-preview-content">
@@ -259,8 +320,8 @@
                 <div class="stats-preview-item">
                     <div class="stats-preview-icon purple">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="3" y="3" width="18" height="18" rx="2"/>
-                            <path d="M3 9h18M9 21V9"/>
+                            <rect x="3" y="3" width="18" height="18" rx="2" />
+                            <path d="M3 9h18M9 21V9" />
                         </svg>
                     </div>
                     <div class="stats-preview-content">
@@ -274,16 +335,16 @@
             <div class="export-actions-row">
                 <button type="button" class="btn btn-ghost btn-lg" onclick="previewExport()">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
                     </svg>
                     Preview Data
                 </button>
                 <button type="button" class="btn btn-primary btn-lg" onclick="executeExport()">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                        <polyline points="7,10 12,15 17,10"/>
-                        <line x1="12" y1="15" x2="12" y2="3"/>
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                        <polyline points="7,10 12,15 17,10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
                     </svg>
                     <span id="exportButtonText">Export Now</span>
                 </button>
@@ -296,8 +357,8 @@
         <div class="card-header">
             <h3 class="card-title">
                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
                 </svg>
                 Export Preview
             </h3>
@@ -305,8 +366,8 @@
                 <span class="badge badge-info" id="previewBadge">0 records</span>
                 <button type="button" class="btn btn-ghost btn-sm" onclick="closePreview()">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                        <line x1="18" y1="6" x2="6" y2="18"/>
-                        <line x1="6" y1="6" x2="18" y2="18"/>
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
                     </svg>
                 </button>
             </div>
@@ -338,251 +399,328 @@
 
 {% block scripts %}
 <script>
-let exportData = null;
+    let exportData = null;
 
-// Teams map for dynamic filtering
-const teamsMap = {{ teams_map|tojson|safe }};
+    // Teams map for dynamic filtering
+    const teamsMap = {{ teams_map| tojson | safe }};
 
-// Dynamic expert filtering based on team selection
-document.addEventListener('DOMContentLoaded', function() {
-    const teamSelect = document.querySelector('select[name="team"]');
-    const expertSelect = document.querySelector('select[name="expert"]');
+    // Dynamic expert filtering based on team selection
+    document.addEventListener('DOMContentLoaded', function () {
+        const teamSelect = document.querySelector('select[name="team"]');
+        const expertSelect = document.querySelector('select[name="expert"]');
 
-    if (teamSelect && expertSelect) {
-        // Store all expert options
-        const allExpertOptions = Array.from(expertSelect.options).slice(1); // Skip "All Experts"
+        if (teamSelect && expertSelect) {
+            // Store all expert options
+            const allExpertOptions = Array.from(expertSelect.options).slice(1); // Skip "All Experts"
 
-        teamSelect.addEventListener('change', function() {
-            const selectedTeam = this.value;
+            teamSelect.addEventListener('change', function () {
+                const selectedTeam = this.value;
 
-            // Clear current expert options (keep "All Experts")
-            expertSelect.innerHTML = '<option value="">All Experts</option>';
+                // Clear current expert options (keep "All Experts")
+                expertSelect.innerHTML = '<option value="">All Experts</option>';
 
-            if (!selectedTeam) {
-                // If no team selected, show all experts
-                allExpertOptions.forEach(option => {
-                    expertSelect.appendChild(option.cloneNode(true));
-                });
-            } else {
-                // Show only experts from selected team
-                const teamMembers = teamsMap[selectedTeam] || [];
-                allExpertOptions.forEach(option => {
-                    if (teamMembers.includes(option.value)) {
+                if (!selectedTeam) {
+                    // If no team selected, show all experts
+                    allExpertOptions.forEach(option => {
                         expertSelect.appendChild(option.cloneNode(true));
-                    }
-                });
-            }
-        });
-    }
-});
-
-// Quick Export Functions
-function quickExport(template) {
-    const form = document.getElementById('customExportForm');
-
-    // Reset form
-    form.reset();
-
-    // Set template-specific values
-    switch(template) {
-        case 'all_candidates':
-            // No filters, export all
-            break;
-        case 'active_pipeline':
-            form.querySelector('select[name="status"]').value = 'active';
-            break;
-        case 'completed_interviews':
-            form.querySelector('select[name="status"]').value = 'completed';
-            break;
-        case 'analytics_summary':
-            // This would trigger a different export type
-            alert('Analytics Summary export coming soon!');
-            return;
-    }
-
-    // Execute export
-    executeExport();
-}
-
-// Quick Export Excel Functions
-async function quickExportExcel(exportType) {
-    showLoading(`Preparing Excel export...`);
-
-    try {
-        const formData = new FormData();
-        formData.append('export_type', exportType);
-        formData.append('format', 'excel');
-        formData.append('start_date', '{{ start_date }}');
-        formData.append('end_date', '{{ end_date }}');
-
-        const response = await fetch('{{ url_for("analytics.export_download") }}', {
-            method: 'POST',
-            body: formData
-        });
-
-        if (!response.ok) {
-            throw new Error('Export failed');
+                    });
+                } else {
+                    // Show only experts from selected team
+                    const teamMembers = teamsMap[selectedTeam] || [];
+                    allExpertOptions.forEach(option => {
+                        if (teamMembers.includes(option.value)) {
+                            expertSelect.appendChild(option.cloneNode(true));
+                        }
+                    });
+                }
+            });
         }
-
-        // Get filename from Content-Disposition header
-        const contentDisposition = response.headers.get('Content-Disposition');
-        let filename = 'export.xlsx';
-        if (contentDisposition) {
-            const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(contentDisposition);
-            if (matches != null && matches[1]) {
-                filename = matches[1].replace(/['"]/g, '');
-            }
-        }
-
-        // Download the file
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        hideLoading();
-        showSuccessToast(`Excel file downloaded: ${filename}`);
-    } catch (error) {
-        hideLoading();
-        alert('Export failed: ' + error.message);
-        console.error('Export error:', error);
-    }
-}
-
-// Reset Filters
-function resetFilters() {
-    document.getElementById('customExportForm').reset();
-    document.getElementById('recordCount').textContent = '-';
-    document.getElementById('fileSize').textContent = '-';
-    document.getElementById('fieldCount').textContent = '-';
-}
-
-// Preview Export
-async function previewExport() {
-    const form = document.getElementById('customExportForm');
-    const formData = new FormData(form);
-
-    showLoading('Generating preview...');
-
-    try {
-        // Simulate API call - replace with actual endpoint
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        // Mock data - replace with actual API response
-        const mockData = [
-            { name: 'John Doe', email: 'john@example.com', technology: 'React', expert: 'jane.smith@example.com', status: 'Active' },
-            { name: 'Jane Smith', email: 'jane@example.com', technology: 'Node.js', expert: 'bob.wilson@example.com', status: 'Scheduled' },
-            { name: 'Bob Wilson', email: 'bob@example.com', technology: 'Python', expert: 'alice.jones@example.com', status: 'Completed' }
-        ];
-
-        displayPreview(mockData);
-        hideLoading();
-    } catch (error) {
-        hideLoading();
-        alert('Failed to generate preview. Please try again.');
-    }
-}
-
-// Display Preview
-function displayPreview(data) {
-    if (!data || data.length === 0) {
-        alert('No data found matching your filters.');
-        return;
-    }
-
-    exportData = data;
-
-    // Update badge
-    document.getElementById('previewBadge').textContent = `${data.length} records`;
-
-    // Build table header
-    const keys = Object.keys(data[0]);
-    const thead = document.getElementById('previewTableHead');
-    thead.innerHTML = '<tr>' + keys.map(key => `<th>${key}</th>`).join('') + '</tr>';
-
-    // Build table body (first 20 rows)
-    const tbody = document.getElementById('previewTableBody');
-    tbody.innerHTML = '';
-
-    data.slice(0, 20).forEach(row => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = keys.map(key => `<td>${row[key] || '-'}</td>`).join('');
-        tbody.appendChild(tr);
     });
 
-    // Show preview section
-    document.getElementById('exportPreviewSection').style.display = 'block';
-    document.getElementById('exportPreviewSection').scrollIntoView({ behavior: 'smooth' });
+    // Quick Export Functions
+    function quickExport(template) {
+        const form = document.getElementById('customExportForm');
 
-    // Update stats
-    document.getElementById('recordCount').textContent = data.length;
-    document.getElementById('fileSize').textContent = `~${Math.ceil(JSON.stringify(data).length / 1024)}KB`;
-    document.getElementById('fieldCount').textContent = keys.length;
-}
+        // Reset form
+        form.reset();
 
-// Close Preview
-function closePreview() {
-    document.getElementById('exportPreviewSection').style.display = 'none';
-}
+        // Set template-specific values
+        switch (template) {
+            case 'all_candidates':
+                // No filters, export all
+                break;
+            case 'active_pipeline':
+                form.querySelector('select[name="status"]').value = 'active';
+                break;
+            case 'completed_interviews':
+                form.querySelector('select[name="status"]').value = 'completed';
+                break;
+            case 'analytics_summary':
+                // This would trigger a different export type
+                alert('Analytics Summary export coming soon!');
+                return;
+        }
 
-// Execute Export
-async function executeExport() {
-    const form = document.getElementById('customExportForm');
-    const formData = new FormData(form);
-    const format = formData.get('format');
-
-    showLoading(`Preparing ${format.toUpperCase()} export...`);
-
-    try {
-        // Simulate export - replace with actual API call
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        // Generate mock file
-        const blob = new Blob([JSON.stringify(exportData || [], null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `export_${new Date().toISOString().split('T')[0]}.${format}`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        hideLoading();
-
-        // Show success message
-        showSuccessToast('Export completed successfully!');
-    } catch (error) {
-        hideLoading();
-        alert('Export failed. Please try again.');
+        // Execute export
+        executeExport();
     }
-}
 
-// Loading Overlay Functions
-function showLoading(text) {
-    document.getElementById('loadingText').textContent = text;
-    document.getElementById('exportLoadingOverlay').style.display = 'flex';
-}
+    // Quick Export Excel Functions
+    async function quickExportExcel(exportType) {
+        showLoading(`Preparing Excel export...`);
 
-function hideLoading() {
-    document.getElementById('exportLoadingOverlay').style.display = 'none';
-}
+        try {
+            // Read current date values from form inputs (respects date preset selections)
+            const startDate = document.querySelector('input[name="start_date"]').value;
+            const endDate = document.querySelector('input[name="end_date"]').value;
 
-// Success Toast
-function showSuccessToast(message) {
-    // Simple alert for now - can be replaced with a proper toast notification
-    alert(message);
-}
+            const formData = new FormData();
+            formData.append('export_type', exportType);
+            formData.append('format', 'excel');
+            formData.append('start_date', startDate);
+            formData.append('end_date', endDate);
 
-// Update stats on form change
-document.getElementById('customExportForm').addEventListener('change', function() {
-    // Could trigger a count query here to update stats
-    console.log('Form changed, update stats if needed');
-});
+            const response = await fetch('{{ url_for("analytics.export_download") }}', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error('Export failed');
+            }
+
+            // Get filename from Content-Disposition header
+            const contentDisposition = response.headers.get('Content-Disposition');
+            let filename = 'export.xlsx';
+            if (contentDisposition) {
+                const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(contentDisposition);
+                if (matches != null && matches[1]) {
+                    filename = matches[1].replace(/['"]/g, '');
+                }
+            }
+
+            // Download the file
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            hideLoading();
+            showSuccessToast(`Excel file downloaded: ${filename}`);
+        } catch (error) {
+            hideLoading();
+            alert('Export failed: ' + error.message);
+            console.error('Export error:', error);
+        }
+    }
+
+    // Reset Filters
+    function resetFilters() {
+        document.getElementById('customExportForm').reset();
+        document.getElementById('recordCount').textContent = '-';
+        document.getElementById('fileSize').textContent = '-';
+        document.getElementById('fieldCount').textContent = '-';
+    }
+
+    // Preview Export - calls real backend API
+    async function previewExport() {
+        const form = document.getElementById('customExportForm');
+        const formData = new FormData(form);
+
+        showLoading('Generating preview...');
+
+        try {
+            const response = await fetch('{{ url_for("analytics.export_preview") }}', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (!result.success) {
+                throw new Error(result.error || 'Preview failed');
+            }
+
+            displayPreview(result.data, result.total_count, result.field_count);
+            hideLoading();
+        } catch (error) {
+            hideLoading();
+            alert('Failed to generate preview: ' + error.message);
+            console.error('Preview error:', error);
+        }
+    }
+
+    // Display Preview
+    function displayPreview(data, totalCount, fieldCount) {
+        if (!data || data.length === 0) {
+            alert('No data found matching your filters.');
+            return;
+        }
+
+        exportData = data;
+
+        // Update badge with total count
+        document.getElementById('previewBadge').textContent = `${totalCount} records (showing first 20)`;
+
+        // Build table header
+        const keys = Object.keys(data[0]);
+        const thead = document.getElementById('previewTableHead');
+        thead.innerHTML = '<tr>' + keys.map(key => `<th>${key}</th>`).join('') + '</tr>';
+
+        // Build table body (already limited to 20 from backend)
+        const tbody = document.getElementById('previewTableBody');
+        tbody.innerHTML = '';
+
+        data.forEach(row => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = keys.map(key => `<td>${row[key] !== null && row[key] !== undefined ? row[key] : '-'}</td>`).join('');
+            tbody.appendChild(tr);
+        });
+
+        // Show preview section
+        document.getElementById('exportPreviewSection').style.display = 'block';
+        document.getElementById('exportPreviewSection').scrollIntoView({ behavior: 'smooth' });
+
+        // Update stats
+        document.getElementById('recordCount').textContent = totalCount;
+        document.getElementById('fileSize').textContent = `~${Math.ceil(totalCount * 0.5)}KB`;
+        document.getElementById('fieldCount').textContent = fieldCount || keys.length;
+    }
+
+    // Close Preview
+    function closePreview() {
+        document.getElementById('exportPreviewSection').style.display = 'none';
+    }
+
+    // Execute Export - calls real backend API
+    async function executeExport() {
+        const form = document.getElementById('customExportForm');
+        const formData = new FormData(form);
+        const format = formData.get('format');
+
+        showLoading(`Preparing ${format.toUpperCase()} export...`);
+
+        try {
+            const response = await fetch('{{ url_for("analytics.export_download") }}', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Export failed');
+            }
+
+            // Get filename from Content-Disposition header
+            const contentDisposition = response.headers.get('Content-Disposition');
+            let filename = `export_${new Date().toISOString().split('T')[0]}.${format === 'excel' ? 'xlsx' : format}`;
+            if (contentDisposition) {
+                const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(contentDisposition);
+                if (matches != null && matches[1]) {
+                    filename = matches[1].replace(/['"]/g, '');
+                }
+            }
+
+            // Download the file
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            hideLoading();
+            showSuccessToast(`Export completed: ${filename}`);
+        } catch (error) {
+            hideLoading();
+            alert('Export failed: ' + error.message);
+            console.error('Export error:', error);
+        }
+    }
+
+    // Loading Overlay Functions
+    function showLoading(text) {
+        document.getElementById('loadingText').textContent = text;
+        document.getElementById('exportLoadingOverlay').style.display = 'flex';
+    }
+
+    function hideLoading() {
+        document.getElementById('exportLoadingOverlay').style.display = 'none';
+    }
+
+    // Success Toast
+    function showSuccessToast(message) {
+        // Simple alert for now - can be replaced with a proper toast notification
+        alert(message);
+    }
+
+    // Date Preset Functions
+    let selectedPreset = null;
+
+    function setDatePreset(preset) {
+        const today = new Date();
+        let startDate, endDate;
+
+        switch (preset) {
+            case 'this_month':
+                startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+                endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                break;
+            case 'previous_month':
+                startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                endDate = new Date(today.getFullYear(), today.getMonth(), 0);
+                break;
+            case 'quarterly':
+                const quarter = Math.floor(today.getMonth() / 3);
+                startDate = new Date(today.getFullYear(), quarter * 3, 1);
+                endDate = new Date(today.getFullYear(), quarter * 3 + 3, 0);
+                break;
+            case 'yearly':
+                startDate = new Date(today.getFullYear(), 0, 1);
+                endDate = new Date(today.getFullYear(), 11, 31);
+                break;
+        }
+
+        // Format dates as YYYY-MM-DD
+        const formatDate = (date) => date.toISOString().split('T')[0];
+
+        // Update form inputs
+        document.querySelector('input[name="start_date"]').value = formatDate(startDate);
+        document.querySelector('input[name="end_date"]').value = formatDate(endDate);
+
+        // Update selected preset label
+        selectedPreset = preset;
+        const label = document.getElementById('selectedPresetLabel');
+        const presetNames = {
+            'this_month': 'This Month',
+            'previous_month': 'Previous Month',
+            'quarterly': 'This Quarter',
+            'yearly': 'This Year'
+        };
+        label.textContent = `Selected: ${presetNames[preset]}`;
+        label.style.display = 'inline';
+
+        // Highlight active button
+        document.querySelectorAll('.date-preset-btn').forEach(btn => {
+            btn.style.background = 'transparent';
+            btn.style.color = 'var(--text-secondary)';
+        });
+        event.target.closest('.date-preset-btn').style.background = 'var(--accent-primary-soft)';
+        event.target.closest('.date-preset-btn').style.color = 'var(--accent-primary)';
+    }
+
+    // Update stats on form change
+    document.getElementById('customExportForm').addEventListener('change', function () {
+        // Could trigger a count query here to update stats
+        console.log('Form changed, update stats if needed');
+    });
 </script>
 {% endblock %}

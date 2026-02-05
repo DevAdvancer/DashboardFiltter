@@ -1,13 +1,15 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="dark">
-    <title>{% block page_title %}InterviewOS{% endblock %}</title>
+    <title>{% block page_title %}MEGA DASHBOARD{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
@@ -16,12 +18,14 @@
             filter: invert(0.8);
             cursor: pointer;
         }
+
         select option {
             background: #16161e;
             color: #f1f5f9;
         }
     </style>
 </head>
+
 <body>
     <div class="app-layout" id="app-layout">
         <!-- Sidebar Navigation -->
@@ -29,12 +33,14 @@
             <!-- Toggle Button -->
             <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle Sidebar">
                 <!-- Left Chevron - shows when sidebar is expanded (to collapse) -->
-                <svg class="toggle-chevron-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="15,18 9,12 15,6"/>
+                <svg class="toggle-chevron-left" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="15,18 9,12 15,6" />
                 </svg>
                 <!-- Right Chevron - shows when sidebar is collapsed (to expand) -->
-                <svg class="toggle-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9,18 15,12 9,6"/>
+                <svg class="toggle-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9,18 15,12 9,6" />
                 </svg>
             </button>
 
@@ -42,106 +48,117 @@
                 <div class="logo">
                     <div class="logo-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="3" y="3" width="18" height="18" rx="4" fill="currentColor"/>
-                            <path d="M8 12h8M12 8v8" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                            <rect x="3" y="3" width="18" height="18" rx="4" fill="currentColor" />
+                            <path d="M8 12h8M12 8v8" stroke="white" stroke-width="2" stroke-linecap="round" />
                         </svg>
                     </div>
-                    <span class="logo-text">InterviewOS</span>
+                    <span class="logo-text">MEGA DASHBOARD</span>
                 </div>
             </div>
 
             <nav class="sidebar-nav">
                 <div class="nav-section">
                     <span class="nav-section-title">Analytics</span>
-                    <a href="{{ url_for('dashboard.index') }}" class="nav-link {% if request.endpoint == 'dashboard.index' %}active{% endif %}">
+                    <a href="{{ url_for('dashboard.index') }}"
+                        class="nav-link {% if request.endpoint == 'dashboard.index' %}active{% endif %}">
                         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <rect x="3" y="3" width="7" height="7" rx="1"/>
-                            <rect x="14" y="3" width="7" height="4" rx="1"/>
-                            <rect x="3" y="14" width="7" height="7" rx="1"/>
-                            <rect x="14" y="11" width="7" height="10" rx="1"/>
+                            <rect x="3" y="3" width="7" height="7" rx="1" />
+                            <rect x="14" y="3" width="7" height="4" rx="1" />
+                            <rect x="3" y="14" width="7" height="7" rx="1" />
+                            <rect x="14" y="11" width="7" height="10" rx="1" />
                         </svg>
                         <span>Dashboard Overview</span>
                     </a>
-                    <a href="{{ url_for('analytics.expert_analytics') }}" class="nav-link {% if request.endpoint == 'analytics.expert_analytics' %}active{% endif %}">
+                    <a href="{{ url_for('analytics.expert_analytics') }}"
+                        class="nav-link {% if request.endpoint == 'analytics.expert_analytics' %}active{% endif %}">
                         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <circle cx="12" cy="8" r="4"/>
-                            <path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+                            <circle cx="12" cy="8" r="4" />
+                            <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
                         </svg>
                         <span>Expert Analytics</span>
                     </a>
-                    <a href="{{ url_for('analytics.team_analytics') }}" class="nav-link {% if request.endpoint == 'analytics.team_analytics' %}active{% endif %}">
+                    <a href="{{ url_for('analytics.team_analytics') }}"
+                        class="nav-link {% if request.endpoint == 'analytics.team_analytics' %}active{% endif %}">
                         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <circle cx="9" cy="7" r="3"/>
-                            <circle cx="15" cy="7" r="3"/>
-                            <path d="M3 18c0-3 3-5 6-5 1.5 0 3 .5 4 1.5M15 13c3 0 6 2 6 5"/>
+                            <circle cx="9" cy="7" r="3" />
+                            <circle cx="15" cy="7" r="3" />
+                            <path d="M3 18c0-3 3-5 6-5 1.5 0 3 .5 4 1.5M15 13c3 0 6 2 6 5" />
                         </svg>
                         <span>Team Analytics</span>
                     </a>
-                    <a href="{{ url_for('analytics.funnel_analytics') }}" class="nav-link {% if request.endpoint == 'analytics.funnel_analytics' %}active{% endif %}">
+                    <a href="{{ url_for('analytics.funnel_analytics') }}"
+                        class="nav-link {% if request.endpoint == 'analytics.funnel_analytics' %}active{% endif %}">
                         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M3 4h18l-6 8v6l-6 2V12L3 4z"/>
+                            <path d="M3 4h18l-6 8v6l-6 2V12L3 4z" />
                         </svg>
                         <span>Funnel Analytics</span>
                     </a>
-            </div>
+                </div>
 
                 <div class="nav-section">
                     <span class="nav-section-title">Management</span>
-                    <a href="{{ url_for('analytics.interview_stats') }}" class="nav-link {% if request.endpoint == 'analytics.interview_stats' %}active{% endif %}">
+                    <a href="{{ url_for('analytics.interview_stats') }}"
+                        class="nav-link {% if request.endpoint == 'analytics.interview_stats' %}active{% endif %}">
                         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <line x1="18" y1="20" x2="18" y2="10"/>
-                            <line x1="12" y1="20" x2="12" y2="4"/>
-                            <line x1="6" y1="20" x2="6" y2="14"/>
+                            <line x1="18" y1="20" x2="18" y2="10" />
+                            <line x1="12" y1="20" x2="12" y2="4" />
+                            <line x1="6" y1="20" x2="6" y2="14" />
                         </svg>
                         <span>Interview Stats</span>
                     </a>
-                    <a href="{{ url_for('analytics.interview_records') }}" class="nav-link {% if request.endpoint == 'analytics.interview_records' %}active{% endif %}">
+                    <a href="{{ url_for('analytics.interview_records') }}"
+                        class="nav-link {% if request.endpoint == 'analytics.interview_records' %}active{% endif %}">
                         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                            <polyline points="14,2 14,8 20,8"/>
-                            <line x1="16" y1="13" x2="8" y2="13"/>
-                            <line x1="16" y1="17" x2="8" y2="17"/>
+                            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                            <polyline points="14,2 14,8 20,8" />
+                            <line x1="16" y1="13" x2="8" y2="13" />
+                            <line x1="16" y1="17" x2="8" y2="17" />
                         </svg>
                         <span>Interview Records</span>
                     </a>
-                    <a href="{{ url_for('candidates.active_candidates') }}" class="nav-link {% if request.endpoint == 'candidates.active_candidates' %}active{% endif %}">
+                    <a href="{{ url_for('candidates.active_candidates') }}"
+                        class="nav-link {% if request.endpoint == 'candidates.active_candidates' %}active{% endif %}">
                         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                            <circle cx="9" cy="7" r="4"/>
-                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                            <circle cx="9" cy="7" r="4" />
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                         </svg>
                         <span>Active Candidates</span>
                     </a>
-                    <a href="{{ url_for('candidates.expert_candidate_activity') }}" class="nav-link {% if request.endpoint == 'candidates.expert_candidate_activity' %}active{% endif %}">
+                    <a href="{{ url_for('candidates.expert_candidate_activity') }}"
+                        class="nav-link {% if request.endpoint == 'candidates.expert_candidate_activity' %}active{% endif %}">
                         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/>
-                            <circle cx="9" cy="7" r="4"/>
-                            <path d="M20 8v6M23 11h-6"/>
+                            <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" />
+                            <circle cx="9" cy="7" r="4" />
+                            <path d="M20 8v6M23 11h-6" />
                         </svg>
                         <span>Expert Activity</span>
                     </a>
-                    <a href="{{ url_for('candidates.candidate_lookup') }}" class="nav-link {% if request.endpoint == 'candidates.candidate_lookup' %}active{% endif %}">
+                    <a href="{{ url_for('candidates.candidate_lookup') }}"
+                        class="nav-link {% if request.endpoint == 'candidates.candidate_lookup' %}active{% endif %}">
                         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <circle cx="11" cy="11" r="7"/>
-                            <path d="m21 21-4.35-4.35"/>
+                            <circle cx="11" cy="11" r="7" />
+                            <path d="m21 21-4.35-4.35" />
                         </svg>
                         <span>Candidate Lookup</span>
                     </a>
-                    <a href="{{ url_for('teams.manage') }}" class="nav-link {% if request.endpoint == 'teams.manage' %}active{% endif %}">
+                    <a href="{{ url_for('teams.manage') }}"
+                        class="nav-link {% if request.endpoint == 'teams.manage' %}active{% endif %}">
                         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <rect x="3" y="3" width="7" height="7" rx="2"/>
-                            <rect x="14" y="3" width="7" height="7" rx="2"/>
-                            <rect x="3" y="14" width="7" height="7" rx="2"/>
-                            <rect x="14" y="14" width="7" height="7" rx="2"/>
+                            <rect x="3" y="3" width="7" height="7" rx="2" />
+                            <rect x="14" y="3" width="7" height="7" rx="2" />
+                            <rect x="3" y="14" width="7" height="7" rx="2" />
+                            <rect x="14" y="14" width="7" height="7" rx="2" />
                         </svg>
                         <span>Team Management</span>
                     </a>
-                    <a href="{{ url_for('analytics.export_center') }}" class="nav-link {% if request.endpoint == 'analytics.export_center' %}active{% endif %}">
+                    <a href="{{ url_for('analytics.export_center') }}"
+                        class="nav-link {% if request.endpoint == 'analytics.export_center' %}active{% endif %}">
                         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                            <polyline points="7,10 12,15 17,10"/>
-                            <line x1="12" y1="15" x2="12" y2="3"/>
+                            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                            <polyline points="7,10 12,15 17,10" />
+                            <line x1="12" y1="15" x2="12" y2="3" />
                         </svg>
                         <span>Export Center</span>
                     </a>
@@ -154,7 +171,7 @@
                     <div class="user-info">
                         <span class="user-name">Admin</span>
                         <span class="user-role">Manager</span>
-            </div>
+                    </div>
                 </div>
             </div>
         </aside>
@@ -165,15 +182,15 @@
             <header class="topbar">
                 <div class="topbar-left">
                     <h1 class="page-title">{% block title %}Dashboard{% endblock %}</h1>
-            </div>
+                </div>
 
                 <div class="topbar-right">
                     <div class="status-badge">
                         <span class="status-dot"></span>
                         Live Data
-            </div>
-            </div>
-        </header>
+                    </div>
+                </div>
+            </header>
 
             <!-- Page Content -->
             <main class="main-content">
@@ -184,237 +201,238 @@
 
     <!-- Sidebar Toggle Script -->
     <script>
-    (function() {
-        const SIDEBAR_KEY = 'interviewos_sidebar_collapsed';
-        const appLayout = document.getElementById('app-layout');
-        const toggleBtn = document.getElementById('sidebar-toggle');
+        (function () {
+            const SIDEBAR_KEY = 'MEGA DASHBOARD_sidebar_collapsed';
+            const appLayout = document.getElementById('app-layout');
+            const toggleBtn = document.getElementById('sidebar-toggle');
 
-        // Restore sidebar state
-        function restoreSidebarState() {
-            const isCollapsed = localStorage.getItem(SIDEBAR_KEY) === 'true';
-            if (isCollapsed) {
-                appLayout.classList.add('sidebar-collapsed');
+            // Restore sidebar state
+            function restoreSidebarState() {
+                const isCollapsed = localStorage.getItem(SIDEBAR_KEY) === 'true';
+                if (isCollapsed) {
+                    appLayout.classList.add('sidebar-collapsed');
+                }
             }
-        }
 
-        // Toggle sidebar
-        function toggleSidebar() {
-            appLayout.classList.toggle('sidebar-collapsed');
-            const isCollapsed = appLayout.classList.contains('sidebar-collapsed');
-            localStorage.setItem(SIDEBAR_KEY, isCollapsed);
-        }
+            // Toggle sidebar
+            function toggleSidebar() {
+                appLayout.classList.toggle('sidebar-collapsed');
+                const isCollapsed = appLayout.classList.contains('sidebar-collapsed');
+                localStorage.setItem(SIDEBAR_KEY, isCollapsed);
+            }
 
-        if (toggleBtn) {
-            toggleBtn.addEventListener('click', toggleSidebar);
-        }
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', toggleSidebar);
+            }
 
-        restoreSidebarState();
-    })();
+            restoreSidebarState();
+        })();
     </script>
 
     <!-- Date Filter Persistence Script -->
     <script>
-    (function() {
-        // Get page identifier from current path
-        const pagePath = window.location.pathname;
-        const STORAGE_KEY = 'interviewos_dates_' + pagePath.replace(/\//g, '_');
+        (function () {
+            // Get page identifier from current path
+            const pagePath = window.location.pathname;
+            const STORAGE_KEY = 'MEGA DASHBOARD_dates_' + pagePath.replace(/\//g, '_');
 
-        // Find date inputs on the page
-        const startDateInput = document.querySelector('input[name="start_date"]');
-        const endDateInput = document.querySelector('input[name="end_date"]');
+            // Find date inputs on the page
+            const startDateInput = document.querySelector('input[name="start_date"]');
+            const endDateInput = document.querySelector('input[name="end_date"]');
 
-        // If no date inputs exist on this page, exit
-        if (!startDateInput && !endDateInput) return;
+            // If no date inputs exist on this page, exit
+            if (!startDateInput && !endDateInput) return;
 
-        // Get stored dates for this page
-        function getStoredDates() {
-            try {
-                const stored = localStorage.getItem(STORAGE_KEY);
-                return stored ? JSON.parse(stored) : { start_date: '', end_date: '' };
-            } catch (e) {
-                return { start_date: '', end_date: '' };
-            }
-        }
-
-        // Save dates to localStorage
-        function saveDates() {
-            try {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify({
-                    start_date: startDateInput ? startDateInput.value : '',
-                    end_date: endDateInput ? endDateInput.value : ''
-                }));
-            } catch (e) {
-                console.warn('Could not save date filter to localStorage');
-            }
-        }
-
-        // Clear stored dates for this page
-        function clearStoredDates() {
-            try {
-                localStorage.removeItem(STORAGE_KEY);
-            } catch (e) {}
-        }
-
-        // Check if URL has date params
-        function hasUrlDates() {
-            const params = new URLSearchParams(window.location.search);
-            return params.has('start_date') || params.has('end_date');
-        }
-
-        // Restore dates on page load
-        function restoreDates() {
-            // If URL already has dates, save them and use them
-            if (hasUrlDates()) {
-                saveDates();
-                return;
+            // Get stored dates for this page
+            function getStoredDates() {
+                try {
+                    const stored = localStorage.getItem(STORAGE_KEY);
+                    return stored ? JSON.parse(stored) : { start_date: '', end_date: '' };
+                } catch (e) {
+                    return { start_date: '', end_date: '' };
+                }
             }
 
-            // Otherwise, restore from localStorage
-            const stored = getStoredDates();
-            if (startDateInput && stored.start_date && !startDateInput.value) {
-                startDateInput.value = stored.start_date;
+            // Save dates to localStorage
+            function saveDates() {
+                try {
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                        start_date: startDateInput ? startDateInput.value : '',
+                        end_date: endDateInput ? endDateInput.value : ''
+                    }));
+                } catch (e) {
+                    console.warn('Could not save date filter to localStorage');
+                }
             }
-            if (endDateInput && stored.end_date && !endDateInput.value) {
-                endDateInput.value = stored.end_date;
+
+            // Clear stored dates for this page
+            function clearStoredDates() {
+                try {
+                    localStorage.removeItem(STORAGE_KEY);
+                } catch (e) { }
             }
-        }
 
-        // Handle form submission - save dates
-        const form = startDateInput ? startDateInput.closest('form') : (endDateInput ? endDateInput.closest('form') : null);
-        if (form) {
-            form.addEventListener('submit', function() {
-                saveDates();
-            });
-        }
+            // Check if URL has date params
+            function hasUrlDates() {
+                const params = new URLSearchParams(window.location.search);
+                return params.has('start_date') || params.has('end_date');
+            }
 
-        // Handle Reset button - clear stored dates
-        const resetBtn = document.querySelector('a.btn-ghost[href*="' + pagePath + '"]');
-        if (resetBtn && resetBtn.textContent.trim() === 'Reset') {
-            resetBtn.addEventListener('click', function() {
-                clearStoredDates();
-            });
-        }
+            // Restore dates on page load
+            function restoreDates() {
+                // If URL already has dates, save them and use them
+                if (hasUrlDates()) {
+                    saveDates();
+                    return;
+                }
 
-        // Also handle any Reset link that clears filters
-        document.querySelectorAll('a.btn-ghost').forEach(function(btn) {
-            if (btn.textContent.trim() === 'Reset') {
-                btn.addEventListener('click', function() {
+                // Otherwise, restore from localStorage
+                const stored = getStoredDates();
+                if (startDateInput && stored.start_date && !startDateInput.value) {
+                    startDateInput.value = stored.start_date;
+                }
+                if (endDateInput && stored.end_date && !endDateInput.value) {
+                    endDateInput.value = stored.end_date;
+                }
+            }
+
+            // Handle form submission - save dates
+            const form = startDateInput ? startDateInput.closest('form') : (endDateInput ? endDateInput.closest('form') : null);
+            if (form) {
+                form.addEventListener('submit', function () {
+                    saveDates();
+                });
+            }
+
+            // Handle Reset button - clear stored dates
+            const resetBtn = document.querySelector('a.btn-ghost[href*="' + pagePath + '"]');
+            if (resetBtn && resetBtn.textContent.trim() === 'Reset') {
+                resetBtn.addEventListener('click', function () {
                     clearStoredDates();
                 });
             }
-        });
 
-        // Initialize
-        restoreDates();
-    })();
+            // Also handle any Reset link that clears filters
+            document.querySelectorAll('a.btn-ghost').forEach(function (btn) {
+                if (btn.textContent.trim() === 'Reset') {
+                    btn.addEventListener('click', function () {
+                        clearStoredDates();
+                    });
+                }
+            });
+
+            // Initialize
+            restoreDates();
+        })();
     </script>
 
     <!-- Team-Expert Filter Link Script -->
     {% block page_data %}{% endblock %}
     <script>
-    (function() {
-        // Check if we have teamsMap data
-        if (typeof window.teamsMap === 'undefined') return;
+        (function () {
+            // Check if we have teamsMap data
+            if (typeof window.teamsMap === 'undefined') return;
 
-        // Get team and expert select elements (support both single and multi-select)
-        const teamSelect = document.querySelector('select[name="team"]');
-        const expertSelect = document.querySelector('select[name="expert"]');
+            // Get team and expert select elements (support both single and multi-select)
+            const teamSelect = document.querySelector('select[name="team"]');
+            const expertSelect = document.querySelector('select[name="expert"]');
 
-        if (!teamSelect || !expertSelect) return;
+            if (!teamSelect || !expertSelect) return;
 
-        const isMultiSelect = expertSelect.multiple;
+            const isMultiSelect = expertSelect.multiple;
 
-        // Store all expert options
-        const allExpertOptions = Array.from(expertSelect.options).map(opt => ({
-            value: opt.value,
-            text: opt.text,
-            selected: opt.selected
-        }));
+            // Store all expert options
+            const allExpertOptions = Array.from(expertSelect.options).map(opt => ({
+                value: opt.value,
+                text: opt.text,
+                selected: opt.selected
+            }));
 
-        // Get selected teams (works for both single and multi-select)
-        function getSelectedTeams() {
-            if (teamSelect.multiple) {
-                return Array.from(teamSelect.selectedOptions).map(opt => opt.value).filter(v => v);
-            } else {
-                return teamSelect.value ? [teamSelect.value] : [];
-            }
-        }
-
-        // Get selected experts (for preserving selection)
-        function getSelectedExperts() {
-            if (expertSelect.multiple) {
-                return Array.from(expertSelect.selectedOptions).map(opt => opt.value);
-            } else {
-                return expertSelect.value ? [expertSelect.value] : [];
-            }
-        }
-
-        // Get all team members for selected teams
-        function getTeamMembers(selectedTeams) {
-            const members = new Set();
-            selectedTeams.forEach(teamName => {
-                if (window.teamsMap[teamName]) {
-                    window.teamsMap[teamName].forEach(member => members.add(member));
+            // Get selected teams (works for both single and multi-select)
+            function getSelectedTeams() {
+                if (teamSelect.multiple) {
+                    return Array.from(teamSelect.selectedOptions).map(opt => opt.value).filter(v => v);
+                } else {
+                    return teamSelect.value ? [teamSelect.value] : [];
                 }
-            });
-            return members;
-        }
-
-        // Function to filter expert options based on selected team(s)
-        function filterExperts() {
-            const selectedTeams = getSelectedTeams();
-            const currentSelectedExperts = getSelectedExperts();
-
-            // Clear expert select
-            expertSelect.innerHTML = '';
-
-            // For single-select, add "All Experts" option
-            if (!isMultiSelect) {
-                const allOption = document.createElement('option');
-                allOption.value = '';
-                allOption.textContent = 'All Experts';
-                expertSelect.appendChild(allOption);
             }
 
-            if (selectedTeams.length > 0) {
-                // If team(s) selected, show only members of those teams
-                const teamMembers = getTeamMembers(selectedTeams);
-
-                allExpertOptions.forEach(opt => {
-                    if (opt.value && teamMembers.has(opt.value)) {
-                        const option = document.createElement('option');
-                        option.value = opt.value;
-                        option.textContent = opt.text;
-                        if (currentSelectedExperts.includes(opt.value)) {
-                            option.selected = true;
-                        }
-                        expertSelect.appendChild(option);
-                    }
-                });
-            } else {
-                // If no team selected, show all experts
-                allExpertOptions.forEach(opt => {
-                    if (opt.value) {
-                        const option = document.createElement('option');
-                        option.value = opt.value;
-                        option.textContent = opt.text;
-                        if (currentSelectedExperts.includes(opt.value)) {
-                            option.selected = true;
-                        }
-                        expertSelect.appendChild(option);
-                    }
-                });
+            // Get selected experts (for preserving selection)
+            function getSelectedExperts() {
+                if (expertSelect.multiple) {
+                    return Array.from(expertSelect.selectedOptions).map(opt => opt.value);
+                } else {
+                    return expertSelect.value ? [expertSelect.value] : [];
+                }
             }
-        }
 
-        // Listen for team selection change
-        teamSelect.addEventListener('change', filterExperts);
+            // Get all team members for selected teams
+            function getTeamMembers(selectedTeams) {
+                const members = new Set();
+                selectedTeams.forEach(teamName => {
+                    if (window.teamsMap[teamName]) {
+                        window.teamsMap[teamName].forEach(member => members.add(member));
+                    }
+                });
+                return members;
+            }
 
-        // Run on page load to apply initial filter if team is pre-selected
-        filterExperts();
-    })();
+            // Function to filter expert options based on selected team(s)
+            function filterExperts() {
+                const selectedTeams = getSelectedTeams();
+                const currentSelectedExperts = getSelectedExperts();
+
+                // Clear expert select
+                expertSelect.innerHTML = '';
+
+                // For single-select, add "All Experts" option
+                if (!isMultiSelect) {
+                    const allOption = document.createElement('option');
+                    allOption.value = '';
+                    allOption.textContent = 'All Experts';
+                    expertSelect.appendChild(allOption);
+                }
+
+                if (selectedTeams.length > 0) {
+                    // If team(s) selected, show only members of those teams
+                    const teamMembers = getTeamMembers(selectedTeams);
+
+                    allExpertOptions.forEach(opt => {
+                        if (opt.value && teamMembers.has(opt.value)) {
+                            const option = document.createElement('option');
+                            option.value = opt.value;
+                            option.textContent = opt.text;
+                            if (currentSelectedExperts.includes(opt.value)) {
+                                option.selected = true;
+                            }
+                            expertSelect.appendChild(option);
+                        }
+                    });
+                } else {
+                    // If no team selected, show all experts
+                    allExpertOptions.forEach(opt => {
+                        if (opt.value) {
+                            const option = document.createElement('option');
+                            option.value = opt.value;
+                            option.textContent = opt.text;
+                            if (currentSelectedExperts.includes(opt.value)) {
+                                option.selected = true;
+                            }
+                            expertSelect.appendChild(option);
+                        }
+                    });
+                }
+            }
+
+            // Listen for team selection change
+            teamSelect.addEventListener('change', filterExperts);
+
+            // Run on page load to apply initial filter if team is pre-selected
+            filterExperts();
+        })();
     </script>
 
     {% block scripts %}{% endblock %}
 </body>
+
 </html>
