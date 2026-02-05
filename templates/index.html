@@ -9,7 +9,7 @@
     <div class="hero-stats-grid">
         <div class="hero-stat-card">
             <div class="hero-stat-icon blue">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
                     <circle cx="9" cy="7" r="4" />
                     <path d="M23 21v-2a4 4 0 00-3-3.87" />
@@ -17,7 +17,7 @@
                 </svg>
             </div>
             <div class="hero-stat-content">
-                <span class="hero-stat-value">{{ total_candidates }}</span>
+                <span class="hero-stat-value">{{ total_candidates or 0 }}</span>
                 <span class="hero-stat-label">Total Candidates</span>
                 <span class="hero-stat-sublabel">In the system</span>
             </div>
@@ -25,13 +25,13 @@
 
         <div class="hero-stat-card">
             <div class="hero-stat-icon purple">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <rect x="2" y="7" width="20" height="14" rx="2" />
                     <path d="M16 3v4M8 3v4M2 11h20" />
                 </svg>
             </div>
             <div class="hero-stat-content">
-                <span class="hero-stat-value">{{ total_interviews }}</span>
+                <span class="hero-stat-value">{{ total_interviews or 0 }}</span>
                 <span class="hero-stat-label">Total Interviews</span>
                 <span class="hero-stat-sublabel">All-time conducted</span>
             </div>
@@ -39,27 +39,29 @@
 
         <div class="hero-stat-card">
             <div class="hero-stat-icon green">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
                     <polyline points="22,4 12,14.01 9,11.01" />
                 </svg>
             </div>
             <div class="hero-stat-content">
-                <span class="hero-stat-value">{{ completed_interviews }}</span>
+                <span class="hero-stat-value">{{ completed_interviews or 0 }}</span>
                 <span class="hero-stat-label">Completed</span>
-                <span class="hero-stat-sublabel">{{ ((completed_interviews / total_interviews * 100) if total_interviews
-                    > 0 else 0) | round(1) }}% success rate</span>
+                <span class="hero-stat-sublabel">
+                    {% set success_rate = ((completed_interviews or 0) / (total_interviews or 1) * 100) | round(1) %}
+                    {{ success_rate }}% success rate
+                </span>
             </div>
         </div>
 
         <div class="hero-stat-card">
             <div class="hero-stat-icon orange">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
                 </svg>
             </div>
             <div class="hero-stat-content">
-                <span class="hero-stat-value">{{ active_count }}</span>
+                <span class="hero-stat-value">{{ active_count or 0 }}</span>
                 <span class="hero-stat-label">Active Pipeline</span>
                 <span class="hero-stat-sublabel">Candidates in progress</span>
             </div>
@@ -70,7 +72,7 @@
     <div class="quick-links-section card">
         <div class="card-header">
             <h3 class="card-title">
-                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
                     <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
                     <polyline points="9,22 9,12 15,12 15,22" />
                 </svg>
@@ -78,9 +80,9 @@
             </h3>
         </div>
         <div class="quick-links-grid">
-            <a href="{{ url_for('analytics.expert_analytics') }}" class="quick-link-card">
+            <a href="{{ url_for('analytics.expert_analytics') }}" class="quick-link-card" aria-label="Expert Analytics">
                 <div class="quick-link-icon blue">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                         <circle cx="12" cy="8" r="4" />
                         <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
                     </svg>
@@ -91,9 +93,9 @@
                 </div>
             </a>
 
-            <a href="{{ url_for('analytics.team_analytics') }}" class="quick-link-card">
+            <a href="{{ url_for('analytics.team_analytics') }}" class="quick-link-card" aria-label="Team Analytics">
                 <div class="quick-link-icon purple">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                         <circle cx="9" cy="7" r="3" />
                         <circle cx="15" cy="7" r="3" />
                         <path d="M3 18c0-3 3-5 6-5M15 13c3 0 6 2 6 5" />
@@ -105,9 +107,9 @@
                 </div>
             </a>
 
-            <a href="{{ url_for('analytics.funnel_analytics') }}" class="quick-link-card">
+            <a href="{{ url_for('analytics.funnel_analytics') }}" class="quick-link-card" aria-label="Funnel Analytics">
                 <div class="quick-link-icon teal">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                         <path d="M3 4h18l-6 8v6l-6 2V12L3 4z" />
                     </svg>
                 </div>
@@ -117,9 +119,9 @@
                 </div>
             </a>
 
-            <a href="{{ url_for('analytics.interview_records') }}" class="quick-link-card">
+            <a href="{{ url_for('analytics.interview_records') }}" class="quick-link-card" aria-label="Interview Records">
                 <div class="quick-link-icon orange">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                         <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
                         <polyline points="14,2 14,8 20,8" />
                     </svg>
@@ -138,7 +140,7 @@
         <div class="chart-card card">
             <div class="card-header">
                 <h3 class="card-title">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
                         <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
                         <path d="M22 12A10 10 0 0 0 12 2v10z" />
                     </svg>
@@ -146,7 +148,7 @@
                 </h3>
             </div>
             <div class="chart-container">
-                <canvas id="statusChart"></canvas>
+                <canvas id="statusChart" aria-label="Candidate status distribution chart"></canvas>
             </div>
         </div>
 
@@ -154,7 +156,7 @@
         <div class="chart-card card">
             <div class="card-header">
                 <h3 class="card-title">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
                         <circle cx="12" cy="12" r="10" />
                         <polyline points="12,6 12,12 16,14" />
                     </svg>
@@ -162,7 +164,7 @@
                 </h3>
             </div>
             <div class="chart-container">
-                <canvas id="interviewStatusChart"></canvas>
+                <canvas id="interviewStatusChart" aria-label="Interview status breakdown chart"></canvas>
             </div>
         </div>
 
@@ -170,7 +172,7 @@
         <div class="chart-card card">
             <div class="card-header">
                 <h3 class="card-title">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
                         <path d="M12 2L2 7l10 5 10-5-10-5z" />
                         <path d="M2 17l10 5 10-5M2 12l10 5 10-5" />
                     </svg>
@@ -178,7 +180,7 @@
                 </h3>
             </div>
             <div class="chart-container">
-                <canvas id="techChart"></canvas>
+                <canvas id="techChart" aria-label="Technology distribution chart"></canvas>
             </div>
         </div>
     </div>
@@ -187,7 +189,7 @@
     <div class="funnel-overview-section card">
         <div class="card-header">
             <h3 class="card-title">
-                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
                     <path d="M3 4h18l-6 8v6l-6 2V12L3 4z" />
                 </svg>
                 Interview Funnel Overview
@@ -195,73 +197,79 @@
             <a href="{{ url_for('analytics.funnel_analytics') }}" class="btn btn-ghost btn-sm">View Details</a>
         </div>
         <div class="funnel-visual-dashboard">
+            {% set screening_count = funnel_data.stages.Screening|default(0, true) %}
+            
             <div class="funnel-stage-dash">
                 <div class="funnel-bar-dash screening" style="width: 100%;">
                     <span class="funnel-label">Screening</span>
-                    <span class="funnel-count">{{ funnel_data.stages.Screening }}</span>
+                    <span class="funnel-count">{{ screening_count }}</span>
                 </div>
                 <span class="funnel-percent-dash">100%</span>
             </div>
-            {% if funnel_data.stages.Screening > 0 %}
+            
+            {% if screening_count > 0 %}
             <div class="funnel-arrow-dash">
-                <span class="conversion-badge">{{ funnel_data.conversions.screening_to_1st }}%</span>
+                <span class="conversion-badge">{{ funnel_data.conversions.screening_to_1st|default(0, true) }}%</span>
             </div>
-            {% endif %}
-
+            
+            {% set first_count = funnel_data.stages['1st']|default(0, true) %}
+            {% set first_pct = (first_count / screening_count * 100) | round(1) %}
             <div class="funnel-stage-dash">
-                <div class="funnel-bar-dash first"
-                    style="width: {{ (funnel_data.stages['1st'] / funnel_data.stages.Screening * 100) if funnel_data.stages.Screening > 0 else 0 }}%;">
+                <div class="funnel-bar-dash first" style="width: {{ first_pct }}%;">
                     <span class="funnel-label">1st Round</span>
-                    <span class="funnel-count">{{ funnel_data.stages['1st'] }}</span>
+                    <span class="funnel-count">{{ first_count }}</span>
                 </div>
-                <span class="funnel-percent-dash">{{ (funnel_data.stages['1st'] / funnel_data.stages.Screening * 100) if
-                    funnel_data.stages.Screening > 0 else 0 | round(1) }}%</span>
+                <span class="funnel-percent-dash">{{ first_pct }}%</span>
             </div>
-            {% if funnel_data.stages['1st'] > 0 %}
+            
+            {% if first_count > 0 %}
             <div class="funnel-arrow-dash">
-                <span class="conversion-badge">{{ funnel_data.conversions['1st_to_2nd'] }}%</span>
+                <span class="conversion-badge">{{ funnel_data.conversions['1st_to_2nd']|default(0, true) }}%</span>
             </div>
-            {% endif %}
-
+            
+            {% set second_count = funnel_data.stages['2nd']|default(0, true) %}
+            {% set second_pct = (second_count / screening_count * 100) | round(1) %}
             <div class="funnel-stage-dash">
-                <div class="funnel-bar-dash second"
-                    style="width: {{ (funnel_data.stages['2nd'] / funnel_data.stages.Screening * 100) if funnel_data.stages.Screening > 0 else 0 }}%;">
+                <div class="funnel-bar-dash second" style="width: {{ second_pct }}%;">
                     <span class="funnel-label">2nd Round</span>
-                    <span class="funnel-count">{{ funnel_data.stages['2nd'] }}</span>
+                    <span class="funnel-count">{{ second_count }}</span>
                 </div>
-                <span class="funnel-percent-dash">{{ (funnel_data.stages['2nd'] / funnel_data.stages.Screening * 100) if
-                    funnel_data.stages.Screening > 0 else 0 | round(1) }}%</span>
+                <span class="funnel-percent-dash">{{ second_pct }}%</span>
             </div>
-            {% if funnel_data.stages['2nd'] > 0 %}
+            
+            {% if second_count > 0 %}
             <div class="funnel-arrow-dash">
-                <span class="conversion-badge">{{ funnel_data.conversions['2nd_to_3rd'] }}%</span>
+                <span class="conversion-badge">{{ funnel_data.conversions['2nd_to_3rd']|default(0, true) }}%</span>
             </div>
-            {% endif %}
-
+            
+            {% set third_count = funnel_data.stages['3rd/Technical']|default(0, true) %}
+            {% set third_pct = (third_count / screening_count * 100) | round(1) %}
             <div class="funnel-stage-dash">
-                <div class="funnel-bar-dash third"
-                    style="width: {{ (funnel_data.stages['3rd/Technical'] / funnel_data.stages.Screening * 100) if funnel_data.stages.Screening > 0 else 0 }}%;">
+                <div class="funnel-bar-dash third" style="width: {{ third_pct }}%;">
                     <span class="funnel-label">3rd/Technical</span>
-                    <span class="funnel-count">{{ funnel_data.stages['3rd/Technical'] }}</span>
+                    <span class="funnel-count">{{ third_count }}</span>
                 </div>
-                <span class="funnel-percent-dash">{{ (funnel_data.stages['3rd/Technical'] / funnel_data.stages.Screening
-                    * 100) if funnel_data.stages.Screening > 0 else 0 | round(1) }}%</span>
+                <span class="funnel-percent-dash">{{ third_pct }}%</span>
             </div>
-            {% if funnel_data.stages['3rd/Technical'] > 0 %}
+            
+            {% if third_count > 0 %}
             <div class="funnel-arrow-dash">
-                <span class="conversion-badge">{{ funnel_data.conversions['3rd_to_final'] }}%</span>
+                <span class="conversion-badge">{{ funnel_data.conversions['3rd_to_final']|default(0, true) }}%</span>
+            </div>
+            
+            {% set final_count = funnel_data.stages.Final|default(0, true) %}
+            {% set final_pct = (final_count / screening_count * 100) | round(1) %}
+            <div class="funnel-stage-dash">
+                <div class="funnel-bar-dash final" style="width: {{ final_pct }}%;">
+                    <span class="funnel-label">Final</span>
+                    <span class="funnel-count">{{ final_count }}</span>
+                </div>
+                <span class="funnel-percent-dash">{{ final_pct }}%</span>
             </div>
             {% endif %}
-
-            <div class="funnel-stage-dash">
-                <div class="funnel-bar-dash final"
-                    style="width: {{ (funnel_data.stages.Final / funnel_data.stages.Screening * 100) if funnel_data.stages.Screening > 0 else 0 }}%;">
-                    <span class="funnel-label">Final</span>
-                    <span class="funnel-count">{{ funnel_data.stages.Final }}</span>
-                </div>
-                <span class="funnel-percent-dash">{{ (funnel_data.stages.Final / funnel_data.stages.Screening * 100) if
-                    funnel_data.stages.Screening > 0 else 0 | round(1) }}%</span>
-            </div>
+            {% endif %}
+            {% endif %}
+            {% endif %}
         </div>
     </div>
 
@@ -271,7 +279,7 @@
         <div class="leaderboard-card card">
             <div class="card-header">
                 <h3 class="card-title">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
                         <path d="M12 2L9 9l-7 1 5.5 5L6 22l6-3.5L18 22l-1.5-7 5.5-5-7-1z" />
                     </svg>
                     Top Experts
@@ -279,15 +287,21 @@
                 <a href="{{ url_for('analytics.expert_analytics') }}" class="btn btn-ghost btn-sm">View All</a>
             </div>
             <div class="leaderboard-list">
-                {% for expert in top_experts[:5] %}
+                {% for expert in top_experts[:5] if top_experts %}
                 <div class="leaderboard-item">
                     <div class="leaderboard-rank">{{ loop.index }}</div>
-                    <div class="leaderboard-avatar">{{ expert.name[0]|upper }}</div>
+                    <div class="leaderboard-avatar">{{ (expert.name or 'U')[0]|upper }}</div>
                     <div class="leaderboard-info">
-                        <span class="leaderboard-name">{{ expert.name }}</span>
-                        <span class="leaderboard-meta">{{ expert.count }} interviews</span>
+                        <span class="leaderboard-name">{{ expert.name or 'Unknown' }}</span>
+                        <span class="leaderboard-meta">{{ expert.count or 0 }} interviews</span>
                     </div>
-                    <div class="leaderboard-badge">{{ expert.count }}</div>
+                    <div class="leaderboard-badge">{{ expert.count or 0 }}</div>
+                </div>
+                {% else %}
+                <div class="leaderboard-item">
+                    <div class="leaderboard-info">
+                        <span class="leaderboard-name">No data available</span>
+                    </div>
                 </div>
                 {% endfor %}
             </div>
@@ -297,7 +311,7 @@
         <div class="leaderboard-card card">
             <div class="card-header">
                 <h3 class="card-title">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
                         <path d="M12 2L9 9l-7 1 5.5 5L6 22l6-3.5L18 22l-1.5-7 5.5-5-7-1z" />
                     </svg>
                     Top Teams
@@ -305,21 +319,27 @@
                 <a href="{{ url_for('analytics.team_analytics') }}" class="btn btn-ghost btn-sm">View All</a>
             </div>
             <div class="leaderboard-list">
-                {% for team in top_teams[:5] %}
+                {% for team in top_teams[:5] if top_teams %}
                 <div class="leaderboard-item">
                     <div class="leaderboard-rank">{{ loop.index }}</div>
                     <div class="leaderboard-team-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                             <circle cx="9" cy="7" r="3" />
                             <circle cx="15" cy="7" r="3" />
                             <path d="M3 18c0-3 3-5 6-5M15 13c3 0 6 2 6 5" />
                         </svg>
                     </div>
                     <div class="leaderboard-info">
-                        <span class="leaderboard-name">{{ team.name }}</span>
-                        <span class="leaderboard-meta">{{ team.count }} interviews</span>
+                        <span class="leaderboard-name">{{ team.name or 'Unknown' }}</span>
+                        <span class="leaderboard-meta">{{ team.count or 0 }} interviews</span>
                     </div>
-                    <div class="leaderboard-badge">{{ team.count }}</div>
+                    <div class="leaderboard-badge">{{ team.count or 0 }}</div>
+                </div>
+                {% else %}
+                <div class="leaderboard-item">
+                    <div class="leaderboard-info">
+                        <span class="leaderboard-name">No data available</span>
+                    </div>
                 </div>
                 {% endfor %}
             </div>
@@ -330,7 +350,7 @@
     <div class="chart-card card trend-card">
         <div class="card-header">
             <h3 class="card-title">
-                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
                     <polyline points="23,6 13.5,15.5 8.5,10.5 1,18" />
                     <polyline points="17,6 23,6 23,12" />
                 </svg>
@@ -338,7 +358,7 @@
             </h3>
         </div>
         <div class="chart-container tall">
-            <canvas id="trendChart"></canvas>
+            <canvas id="trendChart" aria-label="Activity trend chart"></canvas>
         </div>
     </div>
 
@@ -346,7 +366,7 @@
     <div class="recent-activity-card card">
         <div class="card-header">
             <h3 class="card-title">
-                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
                     <circle cx="12" cy="12" r="10" />
                     <polyline points="12,6 12,12 16,14" />
                 </svg>
@@ -354,23 +374,27 @@
             </h3>
         </div>
         <div class="activity-list">
-            {% for candidate in recent_candidates %}
+            {% for candidate in recent_candidates[:10] if recent_candidates %}
             <div class="activity-item">
-                <div class="activity-avatar">{{ candidate.get('Candidate Name', 'U')[0]|upper }}</div>
+                <div class="activity-avatar">{{ (candidate.get('Candidate Name') or 'U')[0]|upper }}</div>
                 <div class="activity-info">
-                    <span class="activity-name">{{ candidate.get('Candidate Name', 'Unknown') }}</span>
+                    <span class="activity-name">{{ candidate.get('Candidate Name') or 'Unknown' }}</span>
                     <span class="activity-meta">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12"
-                            height="12">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" aria-hidden="true">
                             <path d="M12 2L2 7l10 5 10-5-10-5z" />
                         </svg>
-                        {{ candidate.get('Technology', 'N/A') }}
+                        {{ candidate.get('Technology') or 'N/A' }}
                     </span>
                 </div>
-                <span
-                    class="status-pill status-{{ candidate.get('workflowStatus', 'unknown')|lower|replace(' ', '_') }}">
-                    {{ candidate.get('workflowStatus', 'Unknown') }}
+                <span class="status-pill status-{{ (candidate.get('workflowStatus') or 'unknown')|lower|replace(' ', '_') }}">
+                    {{ candidate.get('workflowStatus') or 'Unknown' }}
                 </span>
+            </div>
+            {% else %}
+            <div class="activity-item">
+                <div class="activity-info">
+                    <span class="activity-name">No recent activity</span>
+                </div>
             </div>
             {% endfor %}
         </div>
@@ -379,6 +403,9 @@
 {% endblock %}
 
 {% block scripts %}
+<!-- Include Chart.js library -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
 <script>
     // Chart.js Dark Theme Defaults
     Chart.defaults.color = '#94a3b8';
@@ -393,204 +420,225 @@
     Chart.defaults.plugins.tooltip.cornerRadius = 10;
     Chart.defaults.plugins.tooltip.padding = 12;
 
-    // 1. Candidate Status Distribution
-    const statusData = {{ status_breakdown| tojson }};
-    const statusLabels = Object.keys(statusData);
-    const statusValues = Object.values(statusData);
-    const statusTotal = statusValues.reduce((a, b) => a + b, 0);
+    // Helper function to safely get canvas context
+    function getChartContext(id) {
+        const canvas = document.getElementById(id);
+        if (!canvas) {
+            console.warn(`Canvas with id '${id}' not found`);
+            return null;
+        }
+        return canvas.getContext('2d');
+    }
 
-    new Chart(document.getElementById('statusChart').getContext('2d'), {
-        type: 'doughnut',
-        data: {
-            labels: statusLabels,
-            datasets: [{
-                data: statusValues,
-                backgroundColor: [
-                    'rgba(16, 185, 129, 0.8)',
-                    'rgba(59, 130, 246, 0.8)',
-                    'rgba(245, 158, 11, 0.8)',
-                    'rgba(239, 68, 68, 0.8)',
-                    'rgba(168, 85, 247, 0.8)',
-                    'rgba(100, 116, 139, 0.8)'
-                ],
-                borderColor: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#a855f7', '#64748b'],
-                borderWidth: 2,
-                hoverBorderWidth: 3,
-                hoverOffset: 10
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            cutout: '65%',
-            plugins: {
-                legend: { position: 'bottom' },
-                tooltip: {
-                    callbacks: {
-                        label: (ctx) => {
-                            const pct = ((ctx.raw / statusTotal) * 100).toFixed(1);
-                            return `${ctx.label}: ${ctx.raw} (${pct}%)`;
+    // 1. Candidate Status Distribution
+    const statusCtx = getChartContext('statusChart');
+    if (statusCtx) {
+        const statusData = {{ status_breakdown|tojson|default('{}', true) }};
+        const statusLabels = Object.keys(statusData);
+        const statusValues = Object.values(statusData);
+        const statusTotal = statusValues.reduce((a, b) => a + b, 0);
+
+        new Chart(statusCtx, {
+            type: 'doughnut',
+            data: {
+                labels: statusLabels,
+                datasets: [{
+                    data: statusValues,
+                    backgroundColor: [
+                        'rgba(16, 185, 129, 0.8)',
+                        'rgba(59, 130, 246, 0.8)',
+                        'rgba(245, 158, 11, 0.8)',
+                        'rgba(239, 68, 68, 0.8)',
+                        'rgba(168, 85, 247, 0.8)',
+                        'rgba(100, 116, 139, 0.8)'
+                    ],
+                    borderColor: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#a855f7', '#64748b'],
+                    borderWidth: 2,
+                    hoverBorderWidth: 3,
+                    hoverOffset: 10
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '65%',
+                plugins: {
+                    legend: { position: 'bottom' },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => {
+                                const pct = statusTotal > 0 ? ((ctx.raw / statusTotal) * 100).toFixed(1) : '0.0';
+                                return `${ctx.label}: ${ctx.raw} (${pct}%)`;
+                            }
                         }
                     }
                 }
             }
-        }
-    });
+        });
+    }
 
     // 2. Interview Status Breakdown
-    new Chart(document.getElementById('interviewStatusChart').getContext('2d'), {
-        type: 'doughnut',
-        data: {
-            labels: ['Completed', 'Cancelled', 'Rescheduled', 'Other'],
-            datasets: [{
-                data: [
-                    {{ completed_interviews }},
-            {{ cancelled_interviews }},
-                {{ rescheduled_interviews }},
-        {{ total_interviews - completed_interviews - cancelled_interviews - rescheduled_interviews }}
-            ],
-        backgroundColor: [
-        'rgba(16, 185, 129, 0.8)',
-        'rgba(239, 68, 68, 0.8)',
-        'rgba(245, 158, 11, 0.8)',
-        'rgba(100, 116, 139, 0.8)'
-    ],
-        borderColor: ['#10b981', '#ef4444', '#f59e0b', '#64748b'],
-        borderWidth: 2,
-        hoverBorderWidth: 3,
-        hoverOffset: 10
-        }]
-    },
-        options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        cutout: '65%',
-        plugins: {
-            legend: { position: 'bottom' },
-            tooltip: {
-                callbacks: {
-                    label: (ctx) => {
-                        const total = {{ total_interviews }
-                    };
-                    const pct = ((ctx.raw / total) * 100).toFixed(1);
-                    return `${ctx.label}: ${ctx.raw} (${pct}%)`;
+    const interviewCtx = getChartContext('interviewStatusChart');
+    if (interviewCtx) {
+        const totalInterviews = {{ total_interviews|default(0, true) }};
+        new Chart(interviewCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Completed', 'Cancelled', 'Rescheduled', 'Other'],
+                datasets: [{
+                    data: [
+                        {{ completed_interviews|default(0, true) }},
+                        {{ cancelled_interviews|default(0, true) }},
+                        {{ rescheduled_interviews|default(0, true) }},
+                        {{ (total_interviews - completed_interviews - cancelled_interviews - rescheduled_interviews)|default(0, true) }}
+                    ],
+                    backgroundColor: [
+                        'rgba(16, 185, 129, 0.8)',
+                        'rgba(239, 68, 68, 0.8)',
+                        'rgba(245, 158, 11, 0.8)',
+                        'rgba(100, 116, 139, 0.8)'
+                    ],
+                    borderColor: ['#10b981', '#ef4444', '#f59e0b', '#64748b'],
+                    borderWidth: 2,
+                    hoverBorderWidth: 3,
+                    hoverOffset: 10
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '65%',
+                plugins: {
+                    legend: { position: 'bottom' },
+                    tooltip: {
+                        callbacks: {
+                            label: function (ctx) {
+                                const total = {{ total_interviews|default(0, true) }};
+                                const pct = total > 0 ? ((ctx.raw / total) * 100).toFixed(1) : '0.0';
+                                return `${ctx.label}: ${ctx.raw} (${pct}%)`;
+                            }
+                        }
+                    }
                 }
             }
-        }
+        });
     }
-    }
-});
 
     // 3. Technology Distribution
-    const techData = {{ technology_distribution| tojson }};
-    new Chart(document.getElementById('techChart').getContext('2d'), {
-        type: 'bar',
-        data: {
-            labels: techData.map(t => t.name),
-            datasets: [{
-                label: 'Candidates',
-                data: techData.map(t => t.count),
-                backgroundColor: 'rgba(168, 85, 247, 0.8)',
-                borderColor: '#a855f7',
-                borderWidth: 2,
-                borderRadius: 8,
-                hoverBackgroundColor: 'rgba(168, 85, 247, 1)'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        label: (ctx) => `Count: ${ctx.raw}`
+    const techCtx = getChartContext('techChart');
+    if (techCtx) {
+        const techData = {{ technology_distribution|tojson|default('[]', true) }};
+        new Chart(techCtx, {
+            type: 'bar',
+            data: {
+                labels: techData.map(t => t.name),
+                datasets: [{
+                    label: 'Candidates',
+                    data: techData.map(t => t.count),
+                    backgroundColor: 'rgba(168, 85, 247, 0.8)',
+                    borderColor: '#a855f7',
+                    borderWidth: 2,
+                    borderRadius: 8,
+                    hoverBackgroundColor: 'rgba(168, 85, 247, 1)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => `Count: ${ctx.raw}`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { font: { size: 11 } }
+                    },
+                    y: {
+                        grid: { color: 'rgba(42, 42, 58, 0.5)' },
+                        ticks: { font: { size: 11 } }
                     }
                 }
-            },
-            scales: {
-                x: {
-                    grid: { display: false },
-                    ticks: { font: { size: 11 } }
-                },
-                y: {
-                    grid: { color: 'rgba(42, 42, 58, 0.5)' },
-                    ticks: { font: { size: 11 } }
-                }
             }
-        }
-    });
+        });
+    }
 
     // 4. Monthly Trend
-    const monthlyData = {{ monthly_data| tojson }};
-    const trendCtx = document.getElementById('trendChart').getContext('2d');
+    const trendCtx = getChartContext('trendChart');
+    if (trendCtx) {
+        const monthlyData = {{ monthly_data|tojson|default('[]', true) }};
+        
+        const gradient1 = trendCtx.createLinearGradient(0, 0, 0, 300);
+        gradient1.addColorStop(0, 'rgba(59, 130, 246, 0.5)');
+        gradient1.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
 
-    const gradient1 = trendCtx.createLinearGradient(0, 0, 0, 300);
-    gradient1.addColorStop(0, 'rgba(59, 130, 246, 0.5)');
-    gradient1.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
+        const gradient2 = trendCtx.createLinearGradient(0, 0, 0, 300);
+        gradient2.addColorStop(0, 'rgba(16, 185, 129, 0.5)');
+        gradient2.addColorStop(1, 'rgba(16, 185, 129, 0.0)');
 
-    const gradient2 = trendCtx.createLinearGradient(0, 0, 0, 300);
-    gradient2.addColorStop(0, 'rgba(16, 185, 129, 0.5)');
-    gradient2.addColorStop(1, 'rgba(16, 185, 129, 0.0)');
-
-    new Chart(trendCtx, {
-        type: 'line',
-        data: {
-            labels: monthlyData.map(m => m.month),
-            datasets: [
-                {
-                    label: 'Candidates',
-                    data: monthlyData.map(m => m.candidates),
-                    borderColor: '#3b82f6',
-                    backgroundColor: gradient1,
-                    borderWidth: 3,
-                    fill: true,
-                    tension: 0.4,
-                    pointRadius: 6,
-                    pointHoverRadius: 10,
-                    pointBackgroundColor: '#3b82f6',
-                    pointBorderColor: '#16161e',
-                    pointBorderWidth: 2
+        new Chart(trendCtx, {
+            type: 'line',
+            data: {
+                labels: monthlyData.map(m => m.month),
+                datasets: [
+                    {
+                        label: 'Candidates',
+                        data: monthlyData.map(m => m.candidates),
+                        borderColor: '#3b82f6',
+                        backgroundColor: gradient1,
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 6,
+                        pointHoverRadius: 10,
+                        pointBackgroundColor: '#3b82f6',
+                        pointBorderColor: '#16161e',
+                        pointBorderWidth: 2
+                    },
+                    {
+                        label: 'Interviews',
+                        data: monthlyData.map(m => m.interviews),
+                        borderColor: '#10b981',
+                        backgroundColor: gradient2,
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 6,
+                        pointHoverRadius: 10,
+                        pointBackgroundColor: '#10b981',
+                        pointBorderColor: '#16161e',
+                        pointBorderWidth: 2
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { position: 'top' },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => `${ctx.dataset.label}: ${ctx.raw}`
+                        }
+                    }
                 },
-                {
-                    label: 'Interviews',
-                    data: monthlyData.map(m => m.interviews),
-                    borderColor: '#10b981',
-                    backgroundColor: gradient2,
-                    borderWidth: 3,
-                    fill: true,
-                    tension: 0.4,
-                    pointRadius: 6,
-                    pointHoverRadius: 10,
-                    pointBackgroundColor: '#10b981',
-                    pointBorderColor: '#16161e',
-                    pointBorderWidth: 2
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: { mode: 'index', intersect: false },
-            plugins: {
-                legend: { position: 'top' },
-                tooltip: {
-                    callbacks: {
-                        label: (ctx) => `${ctx.dataset.label}: ${ctx.raw}`
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(42, 42, 58, 0.3)' },
+                        ticks: { font: { size: 11 } }
+                    },
+                    y: {
+                        grid: { color: 'rgba(42, 42, 58, 0.3)' },
+                        ticks: { font: { size: 11 } }
                     }
                 }
-            },
-            scales: {
-                x: {
-                    grid: { color: 'rgba(42, 42, 58, 0.3)' },
-                    ticks: { font: { size: 11 } }
-                },
-                y: {
-                    grid: { color: 'rgba(42, 42, 58, 0.3)' },
-                    ticks: { font: { size: 11 } }
-                }
             }
-        }
-    });
+        });
+    }
 </script>
 {% endblock %}

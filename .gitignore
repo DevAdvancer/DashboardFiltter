@@ -64,3 +64,4 @@ htmlcov/
 *.xlsx
 .vercel
 .env*.local
+.agent
