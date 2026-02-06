@@ -10,6 +10,7 @@ from routes.dashboard import dashboard_bp
 from routes.teams import teams_bp
 from routes.candidates import candidates_bp
 from routes.analytics import analytics_bp
+from routes.kpi import kpi_bp
 
 app = Flask(__name__)
 
@@ -28,6 +29,7 @@ app.register_blueprint(dashboard_bp)
 app.register_blueprint(teams_bp, url_prefix='/teams')
 app.register_blueprint(candidates_bp, url_prefix='/candidates')
 app.register_blueprint(analytics_bp, url_prefix='/analytics')
+app.register_blueprint(kpi_bp, url_prefix='/kpi')
 
 # Health check endpoint
 @app.route('/health')
