@@ -422,11 +422,13 @@ def fetch_expert_activity_data(month_s, year_s, status_f, team_f=None, expert_f=
     overall_total = sum(t['total'] for t in team_data)
     overall_active = sum(t['active'] for t in team_data)
     overall_inactive = sum(t['inactive'] for t in team_data)
+    overall_interviews = sum(e['total_interviews'] for t in team_data for e in t['experts'])
 
     summary = {
         'total_candidates': overall_total,
         'active_candidates': overall_active,
         'inactive_candidates': overall_inactive,
+        'total_interviews': overall_interviews,
         'teams_count': len(team_data),
         'date_range': f"{month_s} {year_s}"
     }
