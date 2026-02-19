@@ -161,7 +161,7 @@ def candidate_lookup():
     )
 
 
-def fetch_expert_activity_data(month_s, year_s, status_f, team_f=None, expert_f=None, include_all_candidates=False):
+def fetch_expert_activity_data(month_s, year_s, status_f, team_f=None, expert_f=None, include_all_candidates=False, exclude_rounds=None):
     """
     Shared function to fetch expert activity data.
     """
@@ -192,6 +192,19 @@ def fetch_expert_activity_data(month_s, year_s, status_f, team_f=None, expert_f=
 
     if status_f:
         match_query["status"] = status_f
+
+    # Apply Exclude Rounds filter
+    if exclude_rounds:
+        if isinstance(exclude_rounds, str):
+            rounds_to_exclude = [r.strip() for r in exclude_rounds.split(',') if r.strip()]
+        else:
+            rounds_to_exclude = exclude_rounds
+
+        if rounds_to_exclude:
+            # Use $nor to exclude documents where actualRound matches any of the patterns (case-insensitive)
+            nor_conditions = [{"actualRound": {"$regex": r, "$options": "i"}} for r in rounds_to_exclude]
+            if nor_conditions:
+                 match_query["$nor"] = nor_conditions
 
     # Query taskBody for interview details
     interview_pipeline = [
@@ -443,9 +456,10 @@ def expert_candidate_activity():
     status_filter = request.args.get('status', '')
     team_filter = request.args.get('team', '')
     expert_filter = request.args.get('expert', '')
+    exclude_rounds = request.args.get('exclude_rounds', '')
 
     # Fetch data using shared function
-    team_data, summary = fetch_expert_activity_data(month, year, status_filter, team_filter, expert_filter)
+    team_data, summary = fetch_expert_activity_data(month, year, status_filter, team_filter, expert_filter, exclude_rounds=exclude_rounds)
 
     # Get all teams and experts for dropdowns (unfiltered)
     teams_db = get_teams_db()
@@ -479,6 +493,7 @@ def expert_candidate_activity():
         selected_status=status_filter,
         selected_team=team_filter,
         selected_expert=expert_filter,
+        exclude_rounds=exclude_rounds,
         all_teams=all_teams,
         all_experts=all_experts
     )
@@ -496,10 +511,11 @@ def export_expert_activity():
     status_filter = request.args.get('status', '')
     team_filter = request.args.get('team', '')
     expert_filter = request.args.get('expert', '')
+    exclude_rounds = request.args.get('exclude_rounds', '')
 
     # Fetch data using shared function
     team_data, _ = fetch_expert_activity_data(
-        month, year, status_filter, team_filter, expert_filter, include_all_candidates=True
+        month, year, status_filter, team_filter, expert_filter, include_all_candidates=True, exclude_rounds=exclude_rounds
     )
 
     # Build Excel data
@@ -653,9 +669,9 @@ def active_candidates():
         min_interviews = 2
 
     try:
-        months = int(request.args.get('months', 3))
+        months = int(request.args.get('months', 1))
     except ValueError:
-        months = 3
+        months = 1
 
     team_filter = request.args.get('team', '')
     expert_filter = request.args.get('expert', '')

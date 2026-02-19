@@ -43,9 +43,18 @@ def pct(num, den):
 
 
 def get_date_filter_strings():
-    """Get date filter as strings for taskBody collection."""
+    """
+    Get date filter as strings for taskBody collection.
+    Defaults to current month if not provided.
+    """
     start_date = request.args.get('start_date', '')
     end_date = request.args.get('end_date', '')
+
+    if not start_date and not end_date:
+        today = datetime.now()
+        start_date = today.replace(day=1).strftime('%Y-%m-%d')
+        end_date = today.strftime('%Y-%m-%d')
+
     return start_date, end_date
 
 

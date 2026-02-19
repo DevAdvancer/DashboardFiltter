@@ -88,6 +88,16 @@
                         {% endfor %}
                     </select>
                 </div>
+                <div class="filter-item">
+                    <label>
+                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                        </svg>
+                        Exclude Rounds
+                    </label>
+                    <input type="text" name="exclude_rounds" class="text-input" placeholder="e.g. Screening, Round 1" value="{{ exclude_rounds }}">
+                </div>
                 <div class="filter-actions">
                     <button type="submit" class="btn btn-primary">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
@@ -96,7 +106,7 @@
                         Apply Filters
                     </button>
                     <a href="{{ url_for('candidates.expert_candidate_activity') }}" class="btn btn-ghost">Reset</a>
-                    <a href="{{ url_for('candidates.export_expert_activity', month=selected_month, year=selected_year, status=selected_status, team=selected_team, expert=selected_expert) }}" class="btn btn-success" style="background-color: #10b981; color: white;">
+                    <a href="{{ url_for('candidates.export_expert_activity', month=selected_month, year=selected_year, status=selected_status, team=selected_team, expert=selected_expert, exclude_rounds=exclude_rounds) }}" class="btn btn-success" style="background-color: #10b981; color: white;">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                             <polyline points="7 10 12 15 17 10"></polyline>
