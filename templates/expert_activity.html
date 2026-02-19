@@ -11,64 +11,71 @@
             <div class="filters-row">
                 <div class="filter-item">
                     <label>
-                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="1.5">
-                            <line x1="18" y1="20" x2="18" y2="10" />
-                            <line x1="12" y1="20" x2="12" y2="4" />
-                            <line x1="6" y1="20" x2="6" y2="14" />
-                        </svg>
-                        Min Interviews
-                    </label>
-                    <input type="number" name="min_interviews" value="{{ min_interviews }}" min="0" class="text-input"
-                        placeholder="e.g., 1">
-                    <span class="filter-hint">Candidates with at least this many interviews are "active"</span>
-                </div>
-                <div class="filter-item">
-                    <label>
-                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="1.5">
+                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                             <rect x="3" y="4" width="18" height="18" rx="2" />
                             <line x1="16" y1="2" x2="16" y2="6" />
                             <line x1="8" y1="2" x2="8" y2="6" />
                             <line x1="3" y1="10" x2="21" y2="10" />
                         </svg>
-                        Time Period (Months)
+                        Month
                     </label>
-                    <input type="number" name="months" value="{{ months }}" min="1" max="24" class="text-input"
-                        placeholder="e.g., 3">
-                    <span class="filter-hint">Look back this many months from today</span>
+                    <select name="month" class="select-single">
+                        {% for m in months %}
+                        <option value="{{ m }}" {% if selected_month == m %}selected{% endif %}>{{ m }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-item">
+                    <label>
+                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <rect x="3" y="4" width="18" height="18" rx="2" />
+                            <line x1="16" y1="2" x2="16" y2="6" />
+                            <line x1="8" y1="2" x2="8" y2="6" />
+                            <line x1="3" y1="10" x2="21" y2="10" />
+                        </svg>
+                        Year
+                    </label>
+                    <select name="year" class="select-single">
+                        {% for y in years %}
+                        <option value="{{ y }}" {% if selected_year == y %}selected{% endif %}>{{ y }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-item">
+                    <label>
+                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                        Status
+                    </label>
+                    <select name="status" class="select-single">
+                        <option value="">All Statuses</option>
+                        <option value="Completed" {% if selected_status == 'Completed' %}selected{% endif %}>Completed</option>
+                        <option value="Cancelled" {% if selected_status == 'Cancelled' %}selected{% endif %}>Cancelled</option>
+                        <option value="Rescheduled" {% if selected_status == 'Rescheduled' %}selected{% endif %}>Rescheduled</option>
+                    </select>
                 </div>
                 <div class="filter-actions">
                     <button type="submit" class="btn btn-primary">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16"
-                            height="16">
-                            <polyline points="23 4 23 10 17 10" />
-                            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46"></polygon>
                         </svg>
                         Apply Filters
                     </button>
                     <a href="{{ url_for('candidates.expert_candidate_activity') }}" class="btn btn-ghost">Reset</a>
-                    <a href="{{ url_for('candidates.export_expert_activity', min_interviews=min_interviews, months=months) }}"
-                        class="btn btn-success">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16"
-                            height="16">
-                            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                            <polyline points="7,10 12,15 17,10" />
-                            <line x1="12" y1="15" x2="12" y2="3" />
+                    <a href="{{ url_for('candidates.export_expert_activity', month=selected_month, year=selected_year, status=selected_status) }}" class="btn btn-success" style="background-color: #10b981; color: white;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
                         </svg>
                         Export Excel
                     </a>
                 </div>
             </div>
 
-            <!-- Quick Select Filters -->
-            <div class="quick-select-filters">
-                <span class="quick-select-label">Quick Select:</span>
-                <button type="button" class="quick-btn" data-months="1">Last Month</button>
-                <button type="button" class="quick-btn" data-months="3">Last 3 Months</button>
-                <button type="button" class="quick-btn" data-months="6">Last 6 Months</button>
-                <button type="button" class="quick-btn" data-months="12">Last Year</button>
-            </div>
+
         </form>
     </div>
 
@@ -188,9 +195,66 @@
                                 </summary>
                                 <div class="candidate-list">
                                     {% for candidate in expert.active_candidates %}
-                                    <div class="candidate-item">
-                                        <span class="candidate-name">{{ candidate.CandidateName }}</span>
-                                        <span class="candidate-count">{{ candidate.InterviewCount }} interviews</span>
+                                    <div class="candidate-wrapper">
+                                        <div class="candidate-item">
+                                            <div class="candidate-info">
+                                                <div style="display: flex; flex-direction: column;">
+                                                    <span class="candidate-name">{{ candidate.CandidateName }}</span>
+                                                    {% if candidate.Recruiter or candidate.Branch %}
+                                                    <span class="text-muted text-xs">
+                                                        {% if candidate.Recruiter %}{{ candidate.Recruiter }}{% endif %}
+                                                        {% if candidate.Recruiter and candidate.Branch %} | {% endif %}
+                                                        {% if candidate.Branch %}{{ candidate.Branch }}{% endif %}
+                                                    </span>
+                                                    {% endif %}
+                                                </div>
+                                                <span class="candidate-count">{{ candidate.InterviewCount }} interviews</span>
+                                            </div>
+                                            <button type="button" class="btn-icon" onclick="toggleSubjects(this)" title="View Subjects">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                                                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                                                    <polyline points="10 9 9 9 8 9"></polyline>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                        <div class="candidate-subjects" style="display: none;">
+                                            {% if candidate.InterviewDetails %}
+                                                <ul class="subject-list">
+                                                {% for detail in candidate.InterviewDetails %}
+                                                    <li>
+                                                        <div style="display: flex; align-items: center; gap: 8px;">
+                                                            {% if detail.Subject %}
+                                                                <span>{{ detail.Subject }}</span>
+                                                            {% else %}
+                                                                <span class="text-muted text-xs">No Subject</span>
+                                                            {% endif %}
+                                                        </div>
+                                                        <div style="display: flex; align-items: center; gap: 6px;">
+                                                            {% if detail.Status %}
+                                                                {% if detail.Status == 'Completed' %}
+                                                                    <span class="badge badge-success text-xs">{{ detail.Status }}</span>
+                                                                {% elif detail.Status == 'Cancelled' %}
+                                                                    <span class="badge badge-danger text-xs">{{ detail.Status }}</span>
+                                                                {% elif detail.Status == 'Rescheduled' %}
+                                                                    <span class="badge badge-warning text-xs">{{ detail.Status }}</span>
+                                                                {% else %}
+                                                                    <span class="badge badge-subtle text-xs">{{ detail.Status }}</span>
+                                                                {% endif %}
+                                                            {% endif %}
+                                                            {% if detail.ActualRound %}
+                                                                <span class="badge badge-subtle text-xs">{{ detail.ActualRound }}</span>
+                                                            {% endif %}
+                                                        </div>
+                                                    </li>
+                                                {% endfor %}
+                                                </ul>
+                                            {% else %}
+                                                <span class="text-muted text-xs">No interview details recorded</span>
+                                            {% endif %}
+                                        </div>
                                     </div>
                                     {% endfor %}
                                 </div>
@@ -214,23 +278,13 @@
             <line x1="12" y1="16" x2="12" y2="12" />
             <line x1="12" y1="8" x2="12.01" y2="8" />
         </svg>
-        <span>Showing candidates with <strong>{{ min_interviews }}+ interviews</strong> from <strong>{{ start_date
-                }}</strong> to <strong>{{ end_date }}</strong></span>
+        <span>Showing candidates for <strong>{{ selected_month }} {{ selected_year }}</strong></span>
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-    // Quick select filters for months
-    document.querySelectorAll('.quick-btn').forEach(btn => {
-        btn.addEventListener('click', function () {
-            const months = this.dataset.months;
-            document.querySelector('input[name="months"]').value = months;
-            document.getElementById('filters-form').submit();
-        });
-    });
-
     // Smooth details animation
     document.querySelectorAll('.candidate-details').forEach(details => {
         details.addEventListener('toggle', function () {
@@ -239,6 +293,23 @@
             }
         });
     });
+
+    // Toggle subjects visibility
+    function toggleSubjects(btn) {
+        const wrapper = btn.closest('.candidate-wrapper');
+        const subjects = wrapper.querySelector('.candidate-subjects');
+        const item = wrapper.querySelector('.candidate-item');
+
+        if (subjects.style.display === 'none') {
+            subjects.style.display = 'block';
+            btn.classList.add('active');
+            item.classList.add('expanded');
+        } else {
+            subjects.style.display = 'none';
+            btn.classList.remove('active');
+            item.classList.remove('expanded');
+        }
+    }
 </script>
 
 <style>
@@ -282,14 +353,31 @@
         gap: 8px;
     }
 
+    .candidate-wrapper {
+        display: block;
+    }
+
     .candidate-item {
         display: flex;
-        justify-content: space-between;
         align-items: center;
         padding: 8px 12px;
         background: var(--bg-elevated);
         border-radius: 6px;
         border-left: 3px solid var(--primary);
+        transition: border-radius 0.2s;
+    }
+
+    .candidate-item.expanded {
+        border-bottom-left-radius: 0;
+        border-bottom-right-radius: 0;
+    }
+
+    .candidate-info {
+        flex: 1;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-right: 12px;
     }
 
     .candidate-name {
@@ -303,6 +391,47 @@
         background: var(--surface);
         padding: 4px 8px;
         border-radius: 4px;
+    }
+
+    .btn-icon {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 4px;
+        border-radius: 4px;
+        color: var(--text-muted);
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .btn-icon:hover, .btn-icon.active {
+        background: var(--primary-light);
+        color: var(--primary);
+    }
+
+    .candidate-subjects {
+        padding: 12px;
+        background: var(--bg-subtle);
+        border-radius: 0 0 6px 6px;
+        font-size: 0.85rem;
+        border-left: 3px solid var(--primary-light);
+        margin-top: -2px; /* Slight overlap to prevent gap */
+    }
+
+    .subject-list {
+        margin: 0;
+        padding-left: 16px;
+        list-style-type: disc;
+    }
+
+    .subject-list li {
+        margin-bottom: 4px;
+        color: var(--text-secondary);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
 
     @keyframes slideDown {
