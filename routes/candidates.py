@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from collections import Counter, defaultdict
 import pandas as pd
 from io import BytesIO
+from openpyxl.styles import Alignment
 
 candidates_bp = Blueprint('candidates', __name__)
 
@@ -580,24 +581,45 @@ def export_expert_activity():
             detail_df_sorted = detail_df.sort_values(by=sort_cols, na_position='last')
             detail_df_sorted.to_excel(writer, sheet_name='CandidateDetails', index=False)
 
-            # Merge repeated cells per candidate for readability
+            # Merge repeated cells hierarchically
             ws = writer.sheets['CandidateDetails']
-            merge_key_cols = ["Team", "Expert", "CandidateName", "Recruiter", "Branch"]
             # Map column names to 1-based indices
             header = [cell.value for cell in next(ws.iter_rows(min_row=1, max_row=1))]
             col_index_map = {name: idx + 1 for idx, name in enumerate(header)}
-            merge_cols_idx = [col_index_map[c] for c in merge_key_cols if c in col_index_map]
 
-            # Compute group lengths using pandas groupby
-            grouped = detail_df_sorted.groupby(merge_key_cols, dropna=False, sort=False)
-            start_row = 2  # first data row
-            for _, df_group in grouped:
-                length = len(df_group)
-                end_row = start_row + length - 1
-                if length > 1:
-                    for col_idx in merge_cols_idx:
+            # Define merge hierarchy: Each group includes parent columns to ensure we don't merge across boundaries
+            merge_groups = [
+                ["Team"],
+                ["Team", "Expert"],
+                ["Team", "Expert", "CandidateName"],
+                ["Team", "Expert", "CandidateName", "Recruiter"],
+                ["Team", "Expert", "CandidateName", "Branch"]
+            ]
+
+            for group_cols in merge_groups:
+                target_col_name = group_cols[-1]
+                if target_col_name not in col_index_map:
+                    continue
+
+                col_idx = col_index_map[target_col_name]
+
+                # Group by hierarchy and iterate
+                # sort=False preserves the original sorted order of rows
+                grouped = detail_df_sorted.groupby(group_cols, dropna=False, sort=False)
+
+                start_row = 2  # Data starts at row 2 (1-based index)
+                for _, df_group in grouped:
+                    length = len(df_group)
+                    end_row = start_row + length - 1
+
+                    if length > 1:
                         ws.merge_cells(start_row=start_row, start_column=col_idx, end_row=end_row, end_column=col_idx)
-                start_row = end_row + 1
+
+                        # Center align merged cells vertically
+                        cell = ws.cell(row=start_row, column=col_idx)
+                        cell.alignment = Alignment(vertical='center', horizontal='left')
+
+                    start_row = end_row + 1
         else:
              pd.DataFrame(columns=["Team", "Expert", "CandidateName"]).to_excel(writer, sheet_name='CandidateDetails', index=False)
 
