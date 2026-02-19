@@ -56,6 +56,38 @@
                         <option value="Rescheduled" {% if selected_status == 'Rescheduled' %}selected{% endif %}>Rescheduled</option>
                     </select>
                 </div>
+                <div class="filter-item">
+                    <label>
+                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                        Team
+                    </label>
+                    <select name="team" class="select-single">
+                        <option value="">All Teams</option>
+                        {% for t in all_teams %}
+                        <option value="{{ t }}" {% if selected_team == t %}selected{% endif %}>{{ t }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-item">
+                    <label>
+                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                        Expert
+                    </label>
+                    <select name="expert" class="select-single">
+                        <option value="">All Experts</option>
+                        {% for e in all_experts %}
+                        <option value="{{ e }}" {% if selected_expert == e %}selected{% endif %}>{{ e }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
                 <div class="filter-actions">
                     <button type="submit" class="btn btn-primary">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
@@ -64,7 +96,7 @@
                         Apply Filters
                     </button>
                     <a href="{{ url_for('candidates.expert_candidate_activity') }}" class="btn btn-ghost">Reset</a>
-                    <a href="{{ url_for('candidates.export_expert_activity', month=selected_month, year=selected_year, status=selected_status) }}" class="btn btn-success" style="background-color: #10b981; color: white;">
+                    <a href="{{ url_for('candidates.export_expert_activity', month=selected_month, year=selected_year, status=selected_status, team=selected_team, expert=selected_expert) }}" class="btn btn-success" style="background-color: #10b981; color: white;">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                             <polyline points="7 10 12 15 17 10"></polyline>
@@ -160,9 +192,13 @@
                 <thead>
                     <tr>
                         <th>Expert</th>
-                        <th class="text-center">Total</th>
                         <th class="text-center">Active</th>
-                        <th class="text-center">Inactive</th>
+                        <th class="text-center">Backout</th>
+                        <th class="text-center">Hold</th>
+                        <th class="text-center">Low Priority</th>
+                        <th class="text-center">Placement Offer</th>
+                        <th class="text-center">(blank)</th>
+                        <th class="text-center">Grand Total</th>
                         <th>Active Candidates</th>
                     </tr>
                 </thead>
@@ -176,12 +212,26 @@
                                     }}</span>
                             </div>
                         </td>
-                        <td class="text-center text-bold">{{ expert.total }}</td>
                         <td class="text-center">
-                            <span class="badge badge-success">{{ expert.active }}</span>
+                            <span class="badge badge-success">{{ expert.status_active }}</span>
                         </td>
                         <td class="text-center">
-                            <span class="badge badge-danger">{{ expert.inactive }}</span>
+                            <span class="badge badge-subtle">{{ expert.status_backout }}</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge badge-subtle">{{ expert.status_hold }}</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge badge-subtle">{{ expert.status_low_priority }}</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge badge-subtle">{{ expert.status_placement_offer }}</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge badge-subtle">{{ expert.status_blank }}</span>
+                        </td>
+                        <td class="text-center text-bold">
+                            {{ expert.grand_total }}
                         </td>
                         <td>
                             {% if expert.active_candidates %}
