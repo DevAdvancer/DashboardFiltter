@@ -841,6 +841,11 @@ select option {
     color: var(--orange);
 }
 
+.stat-icon.yellow {
+    background: rgba(234, 179, 8, 0.15);
+    color: #eab308;
+}
+
 .stat-icon.red {
     background: var(--red-light);
     color: var(--red);
@@ -2938,6 +2943,11 @@ select option {
     color: var(--orange);
 }
 
+.count-badge.notdone {
+    background: rgba(234, 179, 8, 0.15);
+    color: #eab308;
+}
+
 .count-badge.small {
     min-width: 28px;
     padding: 2px 8px;
@@ -2961,6 +2971,10 @@ select option {
 
 .status-header.rescheduled {
     color: var(--orange);
+}
+
+.status-header.notdone {
+    color: #eab308;
 }
 
 .team-row {

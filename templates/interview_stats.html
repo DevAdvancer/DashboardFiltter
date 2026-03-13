@@ -156,6 +156,19 @@
                 <span class="stat-value">{{ overall_rescheduled }}</span>
             </div>
         </div>
+        <div class="stat-card">
+            <div class="stat-icon yellow">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+            </div>
+            <div class="stat-content">
+                <span class="stat-label">Not Done</span>
+                <span class="stat-value">{{ overall_notdone }}</span>
+            </div>
+        </div>
     </div>
 
     <!-- Charts Row -->
@@ -210,6 +223,9 @@
                         <th class="text-center">
                             <span class="status-header rescheduled">Rescheduled</span>
                         </th>
+                        <th class="text-center">
+                            <span class="status-header notdone">Not Done</span>
+                        </th>
                         <th class="text-center">Total</th>
                         <th></th>
                     </tr>
@@ -241,6 +257,9 @@
                         <td class="text-center">
                             <span class="count-badge rescheduled">{{ team.rescheduled }}</span>
                         </td>
+                        <td class="text-center">
+                            <span class="count-badge notdone">{{ team.notdone }}</span>
+                        </td>
                         <td class="text-center text-bold">{{ team.total }}</td>
                         <td>
                             <button type="button" class="btn btn-ghost btn-sm toggle-members"
@@ -270,6 +289,9 @@
                         </td>
                         <td class="text-center">
                             <span class="count-badge rescheduled small">{{ member.rescheduled }}</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="count-badge notdone small">{{ member.notdone }}</span>
                         </td>
                         <td class="text-center">{{ member.total }}</td>
                         <td></td>
@@ -320,6 +342,9 @@
                         <th class="text-center">
                             <span class="status-header rescheduled">Rescheduled</span>
                         </th>
+                        <th class="text-center">
+                            <span class="status-header notdone">Not Done</span>
+                        </th>
                         <th class="text-center">Total</th>
                         <th class="text-center">Completion %</th>
                     </tr>
@@ -347,6 +372,9 @@
                         </td>
                         <td class="text-center">
                             <span class="count-badge rescheduled">{{ stat.rescheduled }}</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="count-badge notdone">{{ stat.notdone }}</span>
                         </td>
                         <td class="text-center text-bold">{{ stat.total }}</td>
                         <td class="text-center">
@@ -427,10 +455,10 @@
     new Chart(statusCtx, {
         type: 'doughnut',
         data: {
-            labels: ['Completed', 'Cancelled', 'Rescheduled'],
+            labels: ['Completed', 'Cancelled', 'Rescheduled', 'Not Done'],
             datasets: [{
-                data: [{{ overall_completed }}, {{ overall_cancelled }}, {{ overall_rescheduled }}],
-        backgroundColor: ['#22c55e', '#ef4444', '#f97316'],
+                data: [{{ overall_completed }}, {{ overall_cancelled }}, {{ overall_rescheduled }}, {{ overall_notdone }}],
+        backgroundColor: ['#22c55e', '#ef4444', '#f97316', '#eab308'],
         borderWidth: 0,
         spacing: 2
         }]
@@ -476,6 +504,12 @@
                     label: 'Rescheduled',
                     data: teamData.slice(0, 10).map(t => t.rescheduled),
                     backgroundColor: '#f97316',
+                    borderRadius: 4
+                },
+                {
+                    label: 'Not Done',
+                    data: teamData.slice(0, 10).map(t => t.notdone),
+                    backgroundColor: '#eab308',
                     borderRadius: 4
                 }
             ]

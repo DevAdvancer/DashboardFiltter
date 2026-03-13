@@ -553,7 +553,7 @@ def funnel_analytics():
 @analytics_bp.route('/interview-stats')
 def interview_stats():
     """
-    Interview Statistics page showing Completed, Cancelled, Rescheduled counts
+    Interview Statistics page showing Completed, Cancelled, Rescheduled, Not Done counts
     per expert/team with date filtering.
     """
     db = get_db()
@@ -617,6 +617,9 @@ def interview_stats():
                 "RescheduledCount": {
                     "$sum": {"$cond": [{"$eq": ["$status", "Rescheduled"]}, 1, 0]}
                 },
+                "NotDoneCount": {
+                    "$sum": {"$cond": [{"$eq": ["$status", "Not Done"]}, 1, 0]}
+                },
                 "TotalInterviews": {"$sum": 1}
             }
         },
@@ -627,6 +630,7 @@ def interview_stats():
                 "CompletedCount": 1,
                 "CancelledCount": 1,
                 "RescheduledCount": 1,
+                "NotDoneCount": 1,
                 "TotalInterviews": 1
             }
         }
@@ -654,7 +658,7 @@ def interview_stats():
                 continue
 
         # Compute team totals
-        team_completed = team_cancelled = team_rescheduled = team_total = 0
+        team_completed = team_cancelled = team_rescheduled = team_notdone = team_total = 0
         member_stats = []
 
         for expert in effective_members:
@@ -667,13 +671,15 @@ def interview_stats():
                 c = data["CompletedCount"]
                 x = data["CancelledCount"]
                 r = data["RescheduledCount"]
+                nd = data["NotDoneCount"]
                 t = data["TotalInterviews"]
             else:
-                c = x = r = t = 0
+                c = x = r = nd = t = 0
 
             team_completed += c
             team_cancelled += x
             team_rescheduled += r
+            team_notdone += nd
             team_total += t
 
             member_stats.append({
@@ -681,6 +687,7 @@ def interview_stats():
                 'completed': c,
                 'cancelled': x,
                 'rescheduled': r,
+                'notdone': nd,
                 'total': t
             })
 
@@ -691,6 +698,7 @@ def interview_stats():
                 'completed': c,
                 'cancelled': x,
                 'rescheduled': r,
+                'notdone': nd,
                 'total': t
             })
 
@@ -701,6 +709,7 @@ def interview_stats():
             'completed': team_completed,
             'cancelled': team_cancelled,
             'rescheduled': team_rescheduled,
+            'notdone': team_notdone,
             'total': team_total,
             'members': sorted(member_stats, key=lambda x: x['total'], reverse=True)
         })
@@ -713,6 +722,7 @@ def interview_stats():
     overall_completed = sum(t['completed'] for t in team_data)
     overall_cancelled = sum(t['cancelled'] for t in team_data)
     overall_rescheduled = sum(t['rescheduled'] for t in team_data)
+    overall_notdone = sum(t['notdone'] for t in team_data)
     overall_total = sum(t['total'] for t in team_data)
 
     return render_template(
@@ -729,6 +739,7 @@ def interview_stats():
         overall_completed=overall_completed,
         overall_cancelled=overall_cancelled,
         overall_rescheduled=overall_rescheduled,
+        overall_notdone=overall_notdone,
         overall_total=overall_total
     )
 
