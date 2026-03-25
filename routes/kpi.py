@@ -149,7 +149,12 @@ def kpi_sidebar():
 
     # Get experts for filter dropdown (grouped by team)
     active_experts = get_active_experts(db)
-    expert_emails = sorted(active_experts.keys())
+    teams_lookup = {}
+    for email, info in active_experts.items():
+        team = info.get('team', 'Unknown')
+        teams_lookup.setdefault(team, []).append(email)
+
+    expert_emails = sorted(list(active_experts.keys()))
 
     # Build experts by team mapping for JavaScript filtering
     experts_by_team = {}

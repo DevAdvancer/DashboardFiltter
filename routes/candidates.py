@@ -9,6 +9,21 @@ from openpyxl.styles import Alignment
 
 candidates_bp = Blueprint('candidates', __name__)
 
+
+def get_team_options():
+    teams_db = get_teams_db()
+    teams_cursor = list(teams_db.teams.find({}, {"name": 1, "members": 1, "_id": 0}))
+    teams_map = {team["name"]: team.get("members", []) for team in teams_cursor if team.get("name")}
+    all_teams = sorted(list(teams_map.keys()))
+
+    all_experts = set()
+    for members in teams_map.values():
+        for member in members:
+            all_experts.add(str(member).strip())
+
+    experts = sorted(list(all_experts))
+    return all_teams, experts, teams_map
+
 @candidates_bp.route('/', methods=['GET'])
 def search():
     query_name = request.args.get('q', '')
@@ -464,20 +479,7 @@ def expert_candidate_activity():
     team_data, summary = fetch_expert_activity_data(month, year, status_filter, team_filter, expert_filter, exclude_rounds=exclude_rounds)
 
     # Get all teams and experts for dropdowns (unfiltered)
-    teams_db = get_teams_db()
-    teams_cursor = teams_db.teams.find({}, {"name": 1, "members": 1, "_id": 0})
-    all_teams = []
-    all_experts = set()
-
-    for t in teams_cursor:
-        team_name = t['name']
-        members = t.get('members', [])
-        all_teams.append(team_name)
-        for m in members:
-            all_experts.add(str(m).strip())
-
-    all_teams.sort()
-    all_experts = sorted(list(all_experts))
+    all_teams, all_experts, _ = get_team_options()
 
     # Generate list of years for filter (e.g., last 5 years)
     current_year = datetime.utcnow().year
@@ -819,20 +821,7 @@ def active_candidates():
     active_candidates_list, summary, start_date, end_date = get_active_candidates_data(min_interviews, months, team_filter, expert_filter)
 
     # Get all teams and experts for dropdowns (unfiltered)
-    teams_db = get_teams_db()
-    teams_cursor = teams_db.teams.find({}, {"name": 1, "members": 1, "_id": 0})
-    all_teams = []
-    all_experts = set()
-
-    for t in teams_cursor:
-        team_name = t['name']
-        members = t.get('members', [])
-        all_teams.append(team_name)
-        for m in members:
-            all_experts.add(str(m).strip())
-
-    all_teams.sort()
-    all_experts = sorted(list(all_experts))
+    all_teams, all_experts, _ = get_team_options()
 
     return render_template(
         'active_candidates.html',

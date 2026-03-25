@@ -1,0 +1,537 @@
+{% extends "base.html" %}
+
+{% block page_title %}PO Dashboard - MEGA DASHBOARD{% endblock %}
+{% block title %}PO Dashboard{% endblock %}
+
+{% block content %}
+<div class="analytics-page">
+    {% if selected_record %}
+    <div class="modal-overlay" onclick="closeDetail()"></div>
+    <div class="detail-modal detail-modal-wide">
+        <div class="modal-header">
+            <h3>PO Candidate Details</h3>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="closeDetail()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="detail-grid">
+                <div class="detail-item">
+                    <label>Candidate</label>
+                    <span class="detail-value">{{ selected_record.candidate_name or 'N/A' }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Email</label>
+                    <span class="detail-value">{{ selected_record.email or 'N/A' }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Phone</label>
+                    <span class="detail-value">{{ selected_record.phone or 'N/A' }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Location</label>
+                    <span class="detail-value">{{ selected_record.location or 'N/A' }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Position</label>
+                    <span class="detail-value">{{ selected_record.position or 'N/A' }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Job Location</label>
+                    <span class="detail-value">{{ selected_record.job_location or 'N/A' }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Client</label>
+                    <span class="detail-value">{{ selected_record.client or 'N/A' }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Rate</label>
+                    <span class="detail-value">{{ selected_record.rate or 'N/A' }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Signup Date</label>
+                    <span class="detail-value">{{ selected_record.signup_date or 'N/A' }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Expert Name</label>
+                    <span class="detail-value">{{ selected_record.interview_support_by or 'N/A' }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Team Lead</label>
+                    <span class="detail-value">{{ selected_record.team_lead or 'N/A' }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Manager</label>
+                    <span class="detail-value">{{ selected_record.manager or 'N/A' }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Received At</label>
+                    <span class="detail-value">{{ selected_record.received_at_display or selected_record.received_at or 'N/A' }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Created At</label>
+                    <span class="detail-value">{{ selected_record.created_at_display or selected_record.created_at or 'N/A' }}</span>
+                </div>
+                <div class="detail-item full-width">
+                    <label>Preview Text</label>
+                    <span class="detail-value preview-text">{{ selected_record.preview_text or 'N/A' }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if load_error %}
+    <div class="card error-card">
+        <div class="card-header">
+            <h3 class="card-title">PO Data Could Not Load</h3>
+        </div>
+        <p class="muted-text">{{ load_error }}</p>
+    </div>
+    {% endif %}
+
+    {% set toast_messages = get_flashed_messages(with_categories=true) %}
+    {% if toast_messages %}
+    <div class="toast-stack" id="po-toast-stack">
+        {% for category, message in toast_messages %}
+        <div class="toast toast-{{ category }}" data-toast>
+            <div class="toast-copy">
+                <strong>
+                    {% if category == 'success' %}Success{% elif category == 'error' %}Error{% else %}Notice{% endif %}
+                </strong>
+                <span>{{ message }}</span>
+            </div>
+            <button type="button" class="toast-close" onclick="dismissToast(this)" aria-label="Dismiss notification">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="filters-card card">
+        {% if po_security_enabled and po_access %}
+        <div class="po-access-strip">
+            <div class="po-access-copy">
+                <span class="badge badge-subtle">{{ po_access.label }}</span>
+                {% if po_lock %}
+                <span class="po-access-note">Locked to {{ po_lock.field_label }}: {{ po_lock.value }}</span>
+                {% else %}
+                <span class="po-access-note">All-view PO access is active.</span>
+                {% endif %}
+            </div>
+            <a href="{{ url_for('po.po_logout') }}" class="btn btn-ghost btn-sm">Lock PO Page</a>
+        </div>
+        {% endif %}
+        <form method="GET" action="{{ url_for('po.po_dashboard') }}" class="filters-form">
+            <div class="filters-row filters-row-po">
+                <div class="filter-item">
+                    <label>
+                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <rect x="3" y="4" width="18" height="18" rx="2" />
+                            <line x1="16" y1="2" x2="16" y2="6" />
+                            <line x1="8" y1="2" x2="8" y2="6" />
+                            <line x1="3" y1="10" x2="21" y2="10" />
+                        </svg>
+                        Month
+                    </label>
+                    <select name="month" class="select-single">
+                        <option value="">All Months</option>
+                        {% for month in month_options %}
+                        <option value="{{ month.value }}" {% if selected_month == month.value %}selected{% endif %}>{{ month.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-item">
+                    <label>
+                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <rect x="3" y="4" width="18" height="18" rx="2" />
+                            <line x1="16" y1="2" x2="16" y2="6" />
+                            <line x1="8" y1="2" x2="8" y2="6" />
+                            <line x1="3" y1="10" x2="21" y2="10" />
+                        </svg>
+                        Date
+                    </label>
+                    <input type="date" name="date" value="{{ selected_date or '' }}" class="date-input">
+                </div>
+                <div class="filter-item">
+                    <label>
+                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="8" r="4" />
+                            <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
+                        </svg>
+                        Expert Name
+                    </label>
+                    {% if po_lock and po_lock.field == 'expert' %}
+                    <input type="hidden" name="expert" value="{{ selected_expert or po_lock.value }}">
+                    <select class="select-single" disabled>
+                        <option>{{ selected_expert or po_lock.value }}</option>
+                    </select>
+                    <div class="filter-lock-note">Locked by PO PIN</div>
+                    {% else %}
+                    <select name="expert" class="select-single">
+                        <option value="">All Experts</option>
+                        {% for expert in available_experts %}
+                        <option value="{{ expert }}" {% if selected_expert == expert %}selected{% endif %}>{{ expert }}</option>
+                        {% endfor %}
+                    </select>
+                    {% endif %}
+                </div>
+                <div class="filter-item">
+                    <label>
+                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+                            <circle cx="9" cy="7" r="4" />
+                        </svg>
+                        Manager Name
+                    </label>
+                    {% if po_lock and po_lock.field == 'manager' %}
+                    <input type="hidden" name="manager" value="{{ selected_manager or po_lock.value }}">
+                    <select class="select-single" disabled>
+                        <option>{{ selected_manager or po_lock.value }}</option>
+                    </select>
+                    <div class="filter-lock-note">Locked by PO PIN</div>
+                    {% else %}
+                    <select name="manager" class="select-single">
+                        <option value="">All Managers</option>
+                        {% for manager in available_managers %}
+                        <option value="{{ manager }}" {% if selected_manager == manager %}selected{% endif %}>{{ manager }}</option>
+                        {% endfor %}
+                    </select>
+                    {% endif %}
+                </div>
+                <div class="filter-item">
+                    <label>
+                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="9" cy="7" r="3" />
+                            <circle cx="15" cy="7" r="3" />
+                            <path d="M3 18c0-3 3-5 6-5" />
+                        </svg>
+                        Team Lead Name
+                    </label>
+                    {% if po_lock and po_lock.field == 'team_lead' %}
+                    <input type="hidden" name="team_lead" value="{{ selected_team_lead or po_lock.value }}">
+                    <select class="select-single" disabled>
+                        <option>{{ selected_team_lead or po_lock.value }}</option>
+                    </select>
+                    <div class="filter-lock-note">Locked by PO PIN</div>
+                    {% else %}
+                    <select name="team_lead" class="select-single">
+                        <option value="">All Team Leads</option>
+                        {% for team_lead in available_team_leads %}
+                        <option value="{{ team_lead }}" {% if selected_team_lead == team_lead %}selected{% endif %}>{{ team_lead }}</option>
+                        {% endfor %}
+                    </select>
+                    {% endif %}
+                </div>
+                <div class="filter-actions">
+                    <button type="submit" class="btn btn-primary">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46" />
+                        </svg>
+                        Apply
+                    </button>
+                    <a href="{{ url_for('po.po_dashboard') }}" class="btn btn-ghost">Reset</a>
+                </div>
+            </div>
+        </form>
+        <p class="filters-note">Month and date segmentation is derived from the `received_at` value stored in Supabase.</p>
+        <div class="po-sync-actions">
+            {% if can_fetch_new %}
+            <form method="POST" action="{{ url_for('po.po_fetch_new') }}">
+                <input type="hidden" name="month" value="{{ selected_month or '' }}">
+                <input type="hidden" name="date" value="{{ selected_date or '' }}">
+                <input type="hidden" name="expert" value="{{ selected_expert or '' }}">
+                <input type="hidden" name="manager" value="{{ selected_manager or '' }}">
+                <input type="hidden" name="team_lead" value="{{ selected_team_lead or '' }}">
+                <input type="hidden" name="group_expert" value="{{ selected_group.expert_name if selected_group else '' }}">
+                <input type="hidden" name="group_manager" value="{{ selected_group.manager_name if selected_group else '' }}">
+                <input type="hidden" name="group_team_lead" value="{{ selected_group.team_lead_name if selected_group else '' }}">
+                <input type="hidden" name="record" value="{{ selected_record.record_id if selected_record else '' }}">
+                <button type="submit" class="btn btn-primary">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <path d="M21 12a9 9 0 1 1-3.2-6.9" />
+                        <polyline points="21 3 21 9 15 9" />
+                    </svg>
+                    Fetch New Data
+                </button>
+            </form>
+            <span class="po-sync-note">This runs a short Kafka sync, inserts new PO mails into Supabase, then refreshes this page.</span>
+            {% elif po_security_enabled and po_lock %}
+            <span class="po-sync-note">This PIN is locked to {{ po_lock.field_label }}: {{ po_lock.value }}. Fetch New Data is available only for all-view PO access.</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="stats-row stats-row-po-summary">
+        <div class="stat-card">
+            <div class="stat-icon blue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                    <polyline points="14,2 14,8 20,8" />
+                </svg>
+            </div>
+            <div class="stat-content">
+                <span class="stat-label">PO Mails</span>
+                <span class="stat-value">{{ total_records }}</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon green">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="20" x2="12" y2="10" />
+                    <line x1="18" y1="20" x2="18" y2="4" />
+                    <line x1="6" y1="20" x2="6" y2="14" />
+                </svg>
+            </div>
+            <div class="stat-content">
+                <span class="stat-label">Grouped Rows</span>
+                <span class="stat-value">{{ total_groups }}</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon purple">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="8" r="4" />
+                    <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
+                </svg>
+            </div>
+            <div class="stat-content">
+                <span class="stat-label">Unique Candidates</span>
+                <span class="stat-value">{{ unique_candidates }}</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon teal">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+            </div>
+            <div class="stat-content">
+                <span class="stat-label">Unique Managers</span>
+                <span class="stat-value">{{ unique_managers }}</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon orange">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="9" cy="7" r="3" />
+                    <circle cx="15" cy="7" r="3" />
+                    <path d="M3 18c0-3 3-5 6-5" />
+                    <path d="M15 12c3 0 6 2 6 5" />
+                </svg>
+            </div>
+            <div class="stat-content">
+                <span class="stat-label">Unique Team Leads</span>
+                <span class="stat-value">{{ unique_team_leads }}</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon teal">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+            </div>
+            <div class="stat-content">
+                <span class="stat-label">Months Available</span>
+                <span class="stat-value">{{ active_months }}</span>
+            </div>
+        </div>
+    </div>
+
+    {% if month_options %}
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <rect x="3" y="4" width="18" height="18" rx="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+                Month-Oriented PO View
+            </h3>
+            <span class="badge badge-subtle">{{ month_options|length }} months</span>
+        </div>
+        <div class="month-grid">
+            {% for month in month_options %}
+            <a href="{{ url_for('po.po_dashboard', month=month.value, expert=selected_expert or None, manager=selected_manager or None, team_lead=selected_team_lead or None) }}"
+               class="month-card {% if selected_month == month.value %}active{% endif %}">
+                <span class="month-name">{{ month.label }}</span>
+                <span class="month-year">Received At</span>
+                <span class="month-count">{{ month.count }}</span>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if selected_group %}
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                    <polyline points="14,2 14,8 20,8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
+                </svg>
+                Candidate List For Selected PO Group
+            </h3>
+            <a href="{{ url_for('po.po_dashboard', month=selected_month or None, date=selected_date or None, expert=selected_expert or None, manager=selected_manager or None, team_lead=selected_team_lead or None) }}" class="btn btn-ghost btn-sm">
+                Close View
+            </a>
+        </div>
+        <div class="po-group-meta">
+            <span><strong>Dates Covered:</strong> {{ selected_group.date_label }}</span>
+            <span><strong>Date Buckets:</strong> {{ selected_group.date_count }}</span>
+            <span><strong>Expert:</strong> {{ selected_group.expert_name }}</span>
+            <span><strong>Manager:</strong> {{ selected_group.manager_name }}</span>
+            <span><strong>Team Lead:</strong> {{ selected_group.team_lead_name }}</span>
+            <span><strong>PO Count:</strong> {{ selected_group.po_count }}</span>
+        </div>
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Received At</th>
+                        <th>Candidate Name</th>
+                        <th>Position</th>
+                        <th>Client</th>
+                        <th>Rate</th>
+                        <th>Preview</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in selected_group_records %}
+                    <tr>
+                        <td>{{ record.received_at_display }}</td>
+                        <td>
+                            <a href="{{ url_for('po.po_dashboard', month=selected_month or None, date=selected_date or None, expert=selected_expert or None, manager=selected_manager or None, team_lead=selected_team_lead or None, group_expert=selected_group.expert_name, group_manager=selected_group.manager_name, group_team_lead=selected_group.team_lead_name, record=record.record_id) }}" class="candidate-link">
+                                {{ record.candidate_name_display }}
+                            </a>
+                        </td>
+                        <td>{{ record.position or 'N/A' }}</td>
+                        <td>{{ record.client or 'N/A' }}</td>
+                        <td>{{ record.rate or 'N/A' }}</td>
+                        <td class="preview-cell">{{ record.preview_text or 'N/A' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                    <polyline points="14,2 14,8 20,8" />
+                </svg>
+                PO Summary By Expert And Team
+            </h3>
+            <span class="badge badge-subtle">{{ summary_rows|length }} rows</span>
+        </div>
+
+        {% if summary_rows %}
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Dates Covered</th>
+                        <th>Expert Name</th>
+                        <th>Manager Name</th>
+                        <th>Team Lead Name</th>
+                        <th class="text-center">PO Count</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in summary_rows %}
+                    <tr>
+                        <td>
+                            {{ row.date_label }}
+                            {% if row.date_count > 1 %}
+                            <div class="table-subtext">{{ row.date_count }} dates</div>
+                            {% endif %}
+                        </td>
+                        <td>{{ row.expert_name }}</td>
+                        <td>{{ row.manager_name }}</td>
+                        <td>{{ row.team_lead_name }}</td>
+                        <td class="text-center">
+                            <span class="count-badge primary">{{ row.po_count }}</span>
+                        </td>
+                        <td>
+                            <a href="{{ url_for('po.po_dashboard', month=selected_month or None, date=selected_date or None, expert=selected_expert or None, manager=selected_manager or None, team_lead=selected_team_lead or None, group_expert=row.expert_name, group_manager=row.manager_name, group_team_lead=row.team_lead_name) }}" class="btn btn-ghost btn-sm">
+                                View
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                <polyline points="14,2 14,8 20,8" />
+            </svg>
+            <p>No PO rows found for the current filters.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function dismissToast(button) {
+        const toast = button.closest('[data-toast]');
+        if (!toast) {
+            return;
+        }
+
+        toast.classList.add('toast-leaving');
+        window.setTimeout(function () {
+            toast.remove();
+        }, 220);
+    }
+
+    function closeDetail() {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('record');
+        url.searchParams.delete('view');
+        window.location.href = url.toString();
+    }
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+            closeDetail();
+        }
+    });
+
+    document.querySelectorAll('[data-toast]').forEach(function (toast) {
+        window.setTimeout(function () {
+            toast.classList.add('toast-leaving');
+            window.setTimeout(function () {
+                toast.remove();
+            }, 220);
+        }, 4500);
+    });
+</script>
+{% endblock %}

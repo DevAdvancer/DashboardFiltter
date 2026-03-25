@@ -347,7 +347,7 @@ def expert_analytics():
 
     # Get teams for filter dropdown
     expert_team_map, teams_map = get_expert_team_map(db)
-    teams_list = list(teams_map.keys())
+    teams_list = sorted(list(teams_map.keys()))
 
     # Get all active experts for filter dropdown (only those with manager="Harsh Patel" and active=true)
     all_experts_from_tasks = db.taskBody.distinct('assignedTo', {
@@ -356,7 +356,6 @@ def expert_analytics():
     })
     # Filter to only show active experts
     all_experts = sorted([e for e in all_experts_from_tasks if str(e).lower() in active_experts])
-
     # Get expert funnel data
     expert_stats, _ = get_expert_funnel_data(db, start_date, end_date, filter_team, filter_expert)
 
@@ -428,7 +427,7 @@ def team_analytics():
 
     # Get teams for filter dropdown
     expert_team_map, teams_map = get_expert_team_map(db)
-    teams_list = list(teams_map.keys())
+    teams_list = sorted(list(teams_map.keys()))
 
     # Get all active experts for filter dropdown (only those with manager="Harsh Patel" and active=true)
     all_experts_from_tasks = db.taskBody.distinct('assignedTo', {
@@ -437,7 +436,6 @@ def team_analytics():
     })
     # Filter to only show active experts
     all_experts = sorted([e for e in all_experts_from_tasks if str(e).lower() in active_experts])
-
     # Get team funnel data (with filters applied for alignment)
     team_stats, _ = get_team_funnel_data(db, start_date, end_date, filter_team, filter_expert)
 
@@ -497,7 +495,7 @@ def funnel_analytics():
 
     # Get teams for filter dropdown
     expert_team_map, teams_map = get_expert_team_map(db)
-    teams_list = list(teams_map.keys())
+    teams_list = sorted(list(teams_map.keys()))
 
     # Get all active experts for filter dropdown (only those with manager="Harsh Patel" and active=true)
     all_experts_from_tasks = db.taskBody.distinct('assignedTo', {
@@ -506,7 +504,6 @@ def funnel_analytics():
     })
     # Filter to only show active experts
     all_experts = sorted([e for e in all_experts_from_tasks if str(e).lower() in active_experts])
-
     # Get overall funnel data (with filters for alignment)
     expert_stats, _ = get_expert_funnel_data(db, start_date, end_date, filter_team, filter_expert)
 
@@ -568,7 +565,7 @@ def interview_stats():
 
     # Get expert-team mapping
     expert_team_map, teams_map = get_expert_team_map(db)
-    teams_list = sorted(teams_map.keys())
+    teams_list = sorted(list(teams_map.keys()))
 
     # Get all active experts for filter dropdown (only those with manager="Harsh Patel" and active=true)
     all_experts_from_tasks = db.taskBody.distinct('assignedTo', {
@@ -794,7 +791,7 @@ def interview_records():
 
     # Get expert-team mapping
     expert_team_map, teams_map = get_expert_team_map(db)
-    teams_list = sorted(teams_map.keys())
+    teams_list = sorted(list(teams_map.keys()))
 
     # Get all active experts for filter dropdown (only those with manager="Harsh Patel" and active=true)
     all_experts_from_tasks = db.taskBody.distinct('assignedTo', {
@@ -944,7 +941,6 @@ def export_center():
     })
     # Filter to only show active experts
     experts = sorted([e for e in all_experts_from_tasks if str(e).lower() in active_experts])
-
     # Get technologies and statuses for filters (filter out None values)
     technologies_raw = db.candidateDetails.distinct('Technology')
     technologies = sorted([t for t in technologies_raw if t is not None and t != ''])
