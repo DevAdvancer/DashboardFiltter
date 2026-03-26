@@ -276,6 +276,28 @@ def build_summary_rows(records):
     return rows
 
 
+def build_candidate_month_sections(records):
+    grouped = {}
+
+    for record in records:
+        month_key = record["month_key"] or "unknown"
+        if month_key not in grouped:
+            grouped[month_key] = {
+                "month_key": month_key,
+                "month_label": record["month_label"] or "Unknown",
+                "records": [],
+            }
+        grouped[month_key]["records"].append(record)
+
+    sections = list(grouped.values())
+    sections.sort(key=lambda section: section["month_key"], reverse=True)
+
+    for section in sections:
+        section["records"].sort(key=lambda record: record["sort_ts"], reverse=True)
+
+    return sections
+
+
 def serialize_record(record):
     keys = [
         "record_id",
@@ -507,6 +529,63 @@ def po_dashboard():
         po_access=po_access,
         po_lock=po_lock,
         can_fetch_new=(not po_pin_security_enabled()) or po_access_can_sync(po_access),
+    )
+
+
+@po_bp.route("/candidates")
+def po_candidate_dashboard():
+    if po_pin_security_enabled() and not get_current_po_access():
+        return po_access_redirect(current_request_next_url())
+
+    po_access = get_current_po_access()
+    po_lock = get_po_lock(po_access)
+    selected_month = normalize_month_filter(
+        request.args.get("month", ""),
+        request.args.get("year", ""),
+    )
+
+    try:
+        records = filter_records_for_po_access(fetch_po_records(get_supabase_client()), po_access)
+        load_error = ""
+    except Exception as exc:
+        records = []
+        load_error = str(exc)
+
+    month_counts = Counter(record["month_key"] for record in records if record["month_key"])
+    month_options = [
+        {
+            "value": month_key,
+            "label": month_label(month_key),
+            "count": month_counts[month_key],
+        }
+        for month_key in sorted(month_counts.keys(), reverse=True)
+    ]
+
+    filtered_records = [
+        record for record in records if not selected_month or record["month_key"] == selected_month
+    ]
+    month_sections = build_candidate_month_sections(filtered_records)
+
+    unique_candidates = len(
+        {
+            clean_text(record.get("candidate_name"))
+            for record in filtered_records
+            if clean_text(record.get("candidate_name"))
+        }
+    )
+
+    return render_template(
+        "po_candidate.html",
+        load_error=load_error,
+        month_options=month_options,
+        selected_month=selected_month,
+        month_sections=month_sections,
+        total_records=len(filtered_records),
+        unique_candidates=unique_candidates,
+        active_months=len(month_options),
+        po_security_enabled=po_pin_security_enabled(),
+        po_access=po_access,
+        po_lock=po_lock,
     )
 
 

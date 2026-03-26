@@ -182,6 +182,15 @@
                         </svg>
                         <span>PO</span>
                     </a>
+                    <a href="{{ url_for('po.po_candidate_dashboard') }}"
+                        class="nav-link {% if request.endpoint == 'po.po_candidate_dashboard' %}active{% endif %}">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <circle cx="12" cy="7" r="3.5" />
+                            <path d="M4 20c0-4 3.6-6.5 8-6.5S20 16 20 20" />
+                            <path d="M7 11h10" />
+                        </svg>
+                        <span>PO Candidate</span>
+                    </a>
                 </div>
             </nav>
 
