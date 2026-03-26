@@ -1,13 +1,27 @@
 
-from flask import Blueprint, render_template, request, current_app, send_file
-from db import get_db, get_teams_db
-from datetime import datetime, timedelta
 from collections import Counter, defaultdict
-import pandas as pd
+from datetime import datetime, timedelta
+from difflib import SequenceMatcher
 from io import BytesIO
+import re
+
+import pandas as pd
+from flask import Blueprint, render_template, request, current_app, send_file, url_for
 from openpyxl.styles import Alignment
 
+from db import get_db, get_teams_db
+from po_security import (
+    current_request_next_url,
+    filter_records_for_po_access,
+    get_current_po_access,
+    po_pin_security_enabled,
+)
+from routes.po import fetch_po_records, get_supabase_client, normalize_person_name
+
 candidates_bp = Blueprint('candidates', __name__)
+
+PO_MATCH_THRESHOLD = 0.8
+PO_RECORDS_CACHE_KEY = "expert_activity_po_records_v1"
 
 
 def get_team_options():
@@ -23,6 +37,132 @@ def get_team_options():
 
     experts = sorted(list(all_experts))
     return all_teams, experts, teams_map
+
+
+def normalize_expert_match_name(value):
+    cleaned = " ".join(str(value or "").replace("\xa0", " ").split())
+    if not cleaned:
+        return ""
+
+    if "@" in cleaned:
+        cleaned = cleaned.split("@", 1)[0]
+
+    cleaned = re.sub(r"[._-]+", " ", cleaned)
+    cleaned = re.sub(r"[^A-Za-z0-9\s]", " ", cleaned)
+    cleaned = " ".join(cleaned.split())
+    if not cleaned:
+        return ""
+
+    return " ".join(normalize_person_name(cleaned).lower().split())
+
+
+def get_name_match_score(left, right):
+    if not left or not right:
+        return 0.0
+
+    if left == right:
+        return 1.0
+
+    left_sorted = " ".join(sorted(left.split()))
+    right_sorted = " ".join(sorted(right.split()))
+
+    return max(
+        SequenceMatcher(None, left, right).ratio(),
+        SequenceMatcher(None, left_sorted, right_sorted).ratio(),
+    )
+
+
+def get_selected_po_month_key(month_s, year_s):
+    month_text = str(month_s or "").strip().title()
+    year_text = str(year_s or "").strip()
+
+    if not month_text or not year_text:
+        return ""
+
+    try:
+        return datetime.strptime(f"{month_text} {year_text}", "%b %Y").strftime("%Y-%m")
+    except ValueError:
+        return ""
+
+
+def get_cached_po_records():
+    cache = getattr(current_app, "cache", None)
+    if cache:
+        cached_records = cache.get(PO_RECORDS_CACHE_KEY)
+        if cached_records is not None:
+            return cached_records
+
+    records = fetch_po_records(get_supabase_client())
+
+    if cache:
+        cache.set(PO_RECORDS_CACHE_KEY, records, timeout=300)
+
+    return records
+
+
+def build_po_counts_by_expert(month_s, year_s, expert_names):
+    normalized_experts = {
+        str(name).strip().lower(): normalize_expert_match_name(name)
+        for name in expert_names
+        if str(name).strip()
+    }
+    if not normalized_experts:
+        return {}
+
+    if po_pin_security_enabled() and not get_current_po_access():
+        return {}
+
+    try:
+        po_records = filter_records_for_po_access(get_cached_po_records(), get_current_po_access())
+    except Exception as exc:
+        current_app.logger.warning("Unable to load PO counts for expert activity: %s", exc)
+        return {}
+
+    selected_po_month = get_selected_po_month_key(month_s, year_s)
+    po_counts = defaultdict(int)
+    for record in po_records:
+        if selected_po_month and record.get("month_key") != selected_po_month:
+            continue
+
+        expert_name = record.get("expert_name") or record.get("interview_support_by")
+        normalized_name = normalize_expert_match_name(expert_name)
+        if not normalized_name or normalized_name == "unassigned":
+            continue
+
+        po_counts[normalized_name] += 1
+
+    if not po_counts:
+        return {}
+
+    matched_counts = {}
+    unmatched_experts = {}
+    remaining_po_names = set(po_counts.keys())
+
+    for expert_key, normalized_name in normalized_experts.items():
+        if normalized_name and normalized_name in po_counts:
+            matched_counts[expert_key] = po_counts[normalized_name]
+            remaining_po_names.discard(normalized_name)
+        else:
+            unmatched_experts[expert_key] = normalized_name
+
+    candidate_matches = []
+    for expert_key, normalized_name in unmatched_experts.items():
+        if not normalized_name:
+            continue
+
+        for po_name in remaining_po_names:
+            score = get_name_match_score(normalized_name, po_name)
+            if score >= PO_MATCH_THRESHOLD:
+                candidate_matches.append((score, expert_key, po_name))
+
+    for _, expert_key, po_name in sorted(candidate_matches, key=lambda item: item[0], reverse=True):
+        if expert_key in matched_counts or po_name not in remaining_po_names:
+            continue
+
+        matched_counts[expert_key] = po_counts[po_name]
+        remaining_po_names.remove(po_name)
+
+    return matched_counts
 
 @candidates_bp.route('/', methods=['GET'])
 def search():
@@ -352,6 +492,17 @@ def fetch_expert_activity_data(month_s, year_s, status_f, team_f=None, expert_f=
     # Map expert summaries (already created above)
     expert_summary = {(e.get("_id") or "").lower(): e for e in per_expert}
 
+    displayed_experts = []
+    for members in teams_map_filtered.values():
+        for expert in members:
+            expert_clean = str(expert).strip()
+            if expert_f and expert_clean != expert_f:
+                continue
+            if expert_clean:
+                displayed_experts.append(expert_clean)
+
+    po_counts_by_expert = build_po_counts_by_expert(month_s, year_s, displayed_experts)
+
     # Build team_data using filtered teams map
     team_data = []
     for team_name, members in teams_map_filtered.items():
@@ -407,6 +558,7 @@ def fetch_expert_activity_data(month_s, year_s, status_f, team_f=None, expert_f=
                 'status_hold': sc.get("Hold", 0),
                 'status_low_priority': sc.get("Low Priority", 0),
                 'status_placement_offer': sc.get("Placement Offer", 0),
+                'po_count': po_counts_by_expert.get(key, 0),
                 'status_blank': sc.get("(blank)", 0),
                 'grand_total': total_cnt,
                 'active_candidates': active_list
@@ -477,6 +629,9 @@ def expert_candidate_activity():
 
     # Fetch data using shared function
     team_data, summary = fetch_expert_activity_data(month, year, status_filter, team_filter, expert_filter, exclude_rounds=exclude_rounds)
+    po_access = get_current_po_access()
+    po_security_enabled_for_counts = po_pin_security_enabled()
+    po_counts_locked = po_security_enabled_for_counts and not po_access
 
     # Get all teams and experts for dropdowns (unfiltered)
     all_teams, all_experts, _ = get_team_options()
@@ -499,7 +654,11 @@ def expert_candidate_activity():
         selected_expert=expert_filter,
         exclude_rounds=exclude_rounds,
         all_teams=all_teams,
-        all_experts=all_experts
+        all_experts=all_experts,
+        po_security_enabled=po_security_enabled_for_counts,
+        po_access=po_access,
+        po_counts_locked=po_counts_locked,
+        po_unlock_url=url_for('po.po_access', next=current_request_next_url()) if po_counts_locked else ''
     )
 
 
@@ -516,6 +675,7 @@ def export_expert_activity():
     team_filter = request.args.get('team', '')
     expert_filter = request.args.get('expert', '')
     exclude_rounds = request.args.get('exclude_rounds', '')
+    po_counts_locked = po_pin_security_enabled() and not get_current_po_access()
 
     # Fetch data using shared function
     team_data, _ = fetch_expert_activity_data(
@@ -543,7 +703,7 @@ def export_expert_activity():
                 "Backout": expert_data['status_backout'],
                 "Hold": expert_data['status_hold'],
                 "Low Priority": expert_data['status_low_priority'],
-                "Placement Offer": expert_data['status_placement_offer'],
+                "Placement Offer": "Locked" if po_counts_locked else expert_data.get('po_count', 0),
                 "(blank)": expert_data['status_blank'],
                 "Grand Total": expert_data['grand_total']
             })

@@ -4,6 +4,18 @@
 
 {% block content %}
 <div class="page-content">
+    {% if po_counts_locked %}
+    <div class="card error-card" style="margin-bottom: 20px;">
+        <div class="card-header">
+            <h3 class="card-title">PO Counts Are Locked</h3>
+        </div>
+        <p class="muted-text">
+            Placement Offer counts come from the PO dashboard. Unlock PO access first, then this column will show the real counts.
+            <a href="{{ po_unlock_url }}" class="candidate-link">Unlock PO Access</a>
+        </p>
+    </div>
+    {% endif %}
+
     <!-- Filters Card -->
     <div class="card filters-card">
         <form method="GET" action="{{ url_for('candidates.expert_candidate_activity') }}" class="filters-form"
@@ -252,7 +264,11 @@
                             <span class="badge badge-subtle">{{ expert.status_low_priority }}</span>
                         </td>
                         <td class="text-center">
-                            <span class="badge badge-subtle">{{ expert.status_placement_offer }}</span>
+                            {% if po_counts_locked %}
+                            <span class="badge badge-subtle">Locked</span>
+                            {% else %}
+                            <span class="badge badge-subtle">{{ expert.po_count }}</span>
+                            {% endif %}
                         </td>
                         <td class="text-center">
                             <span class="badge badge-subtle">{{ expert.status_blank }}</span>
