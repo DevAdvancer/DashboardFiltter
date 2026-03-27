@@ -1,13 +1,17 @@
 import json
 import os
 from functools import lru_cache
+import re
 from urllib.parse import urlparse
 
 from flask import request, session
+from services.reference_data import get_teams_reference
+from services.team_management import get_team_management_directory
 
 PO_SESSION_KEY = "po_dashboard_access"
-LOCKABLE_FIELDS = {"expert", "manager", "team_lead"}
+LOCKABLE_FIELDS = {"team", "expert", "manager", "team_lead"}
 LOCK_FIELD_LABELS = {
+    "team": "Team",
     "expert": "Expert Name",
     "manager": "Manager Name",
     "team_lead": "Team Lead Name",
@@ -34,6 +38,73 @@ def normalize_person_name(value):
         return ""
     titled = cleaned.title()
     return PO_NAME_ALIASES.get(titled, titled)
+
+
+def normalize_team_name(value):
+    cleaned = clean_text(value)
+    if not cleaned:
+        return ""
+    compact = re.sub(r"[\s_-]+", "", cleaned).lower()
+    if compact.startswith("team"):
+        compact = compact[4:]
+    return compact
+
+
+def resolve_team_lock_value(value):
+    cleaned = clean_text(value)
+    if not cleaned:
+        return ""
+
+    reference = get_teams_reference()
+    teams_list = reference.get("teams_list", [])
+
+    if cleaned in teams_list:
+        return cleaned
+
+    normalized_value = normalize_team_name(cleaned)
+    for team_name in teams_list:
+        if normalize_team_name(team_name) == normalized_value:
+            return team_name
+
+    normalized_person = normalize_person_name(cleaned)
+    if not normalized_person:
+        return cleaned
+
+    person_tokens = set(re.findall(r"[a-z0-9]+", normalized_person.lower()))
+
+    token_team_matches = {
+        team_name
+        for team_name in teams_list
+        if normalize_team_name(team_name) and normalize_team_name(team_name) in person_tokens
+    }
+    if len(token_team_matches) == 1:
+        return next(iter(token_team_matches))
+
+    directory = get_team_management_directory()
+    team_matches = {
+        clean_text(entry.get("team_name"))
+        for entry in directory.get("entries", [])
+        if clean_text(entry.get("team_name"))
+        and (
+            normalize_person_name(entry.get("team_lead_name")) == normalized_person
+            or normalize_person_name(entry.get("manager_name")) == normalized_person
+            or normalize_person_name(entry.get("expert_name")) == normalized_person
+        )
+    }
+
+    if len(team_matches) == 1:
+        return next(iter(team_matches))
+
+    return cleaned
+
+
+def normalize_lock_value(field, value):
+    cleaned = clean_text(value)
+    if not cleaned:
+        return ""
+    if field == "team":
+        return resolve_team_lock_value(cleaned)
+    return normalize_person_name(cleaned)
 
 
 @lru_cache(maxsize=1)
@@ -78,12 +149,12 @@ def load_po_pin_profiles():
             continue
 
         if not field:
-            field = "team_lead" if team_value else ""
+            field = "team" if team_value else ""
 
         if field not in LOCKABLE_FIELDS or not value:
             continue
 
-        value = normalize_person_name(value)
+        value = normalize_lock_value(field, value)
 
         profiles.append(
             {
@@ -122,7 +193,7 @@ def get_current_po_access():
 
     scope = clean_text(access.get("scope")).lower()
     field = clean_text(access.get("field")).lower()
-    value = normalize_person_name(access.get("value"))
+    value = normalize_lock_value(field, access.get("value"))
 
     if scope == "all":
         return {
@@ -148,7 +219,7 @@ def set_current_po_access(profile):
         "label": clean_text(profile.get("label")),
         "scope": clean_text(profile.get("scope")).lower(),
         "field": clean_text(profile.get("field")).lower(),
-        "value": normalize_person_name(profile.get("value")),
+        "value": normalize_lock_value(clean_text(profile.get("field")).lower(), profile.get("value")),
     }
 
 
@@ -176,11 +247,29 @@ def filter_records_for_po_access(records, access=None):
         return records
 
     key = {
+        "team": "team_name",
         "expert": "expert_name",
         "manager": "manager_name",
         "team_lead": "team_lead_name",
     }[lock["field"]]
-    return [record for record in records if normalize_person_name(record.get(key)) == lock["value"]]
+    return [
+        record
+        for record in records
+        if normalize_lock_value(lock["field"], record.get(key)) == lock["value"]
+    ]
+
+
+def enforce_po_dashboard_filters(selected_team, selected_expert, access=None):
+    access = access or get_current_po_access()
+    lock = get_po_lock(access)
+    if not lock:
+        return selected_team, selected_expert
+
+    if lock["field"] == "team":
+        return lock["value"], selected_expert
+    if lock["field"] == "expert":
+        return selected_team, lock["value"]
+    return selected_team, selected_expert
 
 
 def enforce_po_filter_values(selected_expert, selected_manager, selected_team_lead, access=None):

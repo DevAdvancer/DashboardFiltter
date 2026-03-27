@@ -7,7 +7,7 @@ from supabase import create_client
 from po_security import (
     current_request_next_url,
     clear_current_po_access,
-    enforce_po_filter_values,
+    enforce_po_dashboard_filters,
     filter_records_for_po_access,
     find_po_pin_profile,
     get_current_po_access,
@@ -18,6 +18,13 @@ from po_security import (
     set_current_po_access,
 )
 from services.po_consumer import POConsumerService
+from services.team_management import (
+    clean_text,
+    display_value,
+    get_management_snapshot,
+    get_team_management_directory,
+    normalize_person_name,
+)
 
 po_bp = Blueprint("po", __name__)
 
@@ -42,12 +49,6 @@ created_at
 
 MAX_FETCH_ROWS = max(int(os.getenv("PO_MAX_FETCH_ROWS", 5000)), 1)
 FETCH_BATCH_SIZE = max(min(int(os.getenv("PO_FETCH_BATCH_SIZE", 1000)), MAX_FETCH_ROWS), 1)
-PO_NAME_ALIASES = {
-    "Anusree Vasudevan": "Anushree Vasudevan",
-    "Prateek Navariya": "Prateek Narvariya",
-    "Rujuwal Garag": "Rujuwal Garg",
-}
-PO_PLACEHOLDER_NAMES = {"n/a", "na", "not applicable", "none", "null", "nil"}
 
 
 def get_supabase_client():
@@ -57,27 +58,6 @@ def get_supabase_client():
     if not supabase_url or not supabase_key:
         raise RuntimeError("Supabase configuration is missing for the PO dashboard.")
     return create_client(supabase_url, supabase_key)
-
-
-def clean_text(value):
-    if value is None:
-        return ""
-    return " ".join(str(value).replace("\xa0", " ").split())
-
-
-def display_value(value, fallback="Unassigned"):
-    cleaned = clean_text(value)
-    return cleaned or fallback
-
-
-def normalize_person_name(value):
-    cleaned = clean_text(value)
-    if not cleaned:
-        return ""
-    if cleaned.lower() in PO_PLACEHOLDER_NAMES:
-        return ""
-    titled = cleaned.title()
-    return PO_NAME_ALIASES.get(titled, titled)
 
 
 def parse_datetime(value):
@@ -156,17 +136,26 @@ def summarize_dates(date_values):
     }
 
 
-def enrich_record(row):
+def enrich_record(row, management_directory=None):
     received_dt = parse_datetime(row.get("received_at"))
     created_dt = parse_datetime(row.get("created_at"))
     effective_dt = received_dt or created_dt
+    management = get_management_snapshot(
+        row.get("interview_support_by"),
+        fallback_manager=row.get("manager"),
+        fallback_team_lead=row.get("team_lead"),
+        directory=management_directory,
+    )
 
     enriched = dict(row)
     enriched["record_id"] = str(row.get("id", ""))
     enriched["candidate_name_display"] = display_value(row.get("candidate_name"), "N/A")
-    enriched["expert_name"] = display_value(normalize_person_name(row.get("interview_support_by")))
-    enriched["manager_name"] = display_value(normalize_person_name(row.get("manager")))
-    enriched["team_lead_name"] = display_value(normalize_person_name(row.get("team_lead")))
+    enriched["expert_name"] = management["expert_name"]
+    enriched["manager_name"] = management["manager_name"]
+    enriched["team_lead_name"] = management["team_lead_name"]
+    enriched["team_name"] = management["team_name"]
+    enriched["management_source"] = management["management_source"]
+    enriched["expert_email"] = management["email"]
     enriched["received_at_display"] = (
         effective_dt.strftime("%Y-%m-%d %I:%M %p")
         if effective_dt
@@ -209,7 +198,8 @@ def fetch_po_records(supabase):
 
         start += FETCH_BATCH_SIZE
 
-    enriched_records = [enrich_record(row) for row in records]
+    management_directory = get_team_management_directory()
+    enriched_records = [enrich_record(row, management_directory) for row in records]
     enriched_records.sort(key=lambda row: row["sort_ts"], reverse=True)
     return enriched_records
 
@@ -231,6 +221,7 @@ def build_summary_rows(records):
 
     for record in records:
         key = (
+            record["team_name"],
             record["expert_name"],
             record["manager_name"],
             record["team_lead_name"],
@@ -238,6 +229,7 @@ def build_summary_rows(records):
 
         if key not in grouped:
             grouped[key] = {
+                "team_name": record["team_name"],
                 "expert_name": record["expert_name"],
                 "manager_name": record["manager_name"],
                 "team_lead_name": record["team_lead_name"],
@@ -271,6 +263,7 @@ def build_summary_rows(records):
     rows.sort(key=lambda row: row["team_lead_name"].lower())
     rows.sort(key=lambda row: row["manager_name"].lower())
     rows.sort(key=lambda row: row["expert_name"].lower())
+    rows.sort(key=lambda row: row["team_name"].lower())
     rows.sort(key=lambda row: row["po_count"], reverse=True)
     rows.sort(key=lambda row: row["latest_sort_ts"], reverse=True)
     return rows
@@ -323,6 +316,7 @@ def serialize_record(record):
         "month_key",
         "month_label",
         "expert_name",
+        "team_name",
         "manager_name",
         "team_lead_name",
     ]
@@ -335,9 +329,11 @@ def build_po_redirect_params(source):
     for key in (
         "month",
         "date",
+        "team",
         "expert",
         "manager",
         "team_lead",
+        "group_team",
         "group_expert",
         "group_manager",
         "group_team_lead",
@@ -405,10 +401,10 @@ def po_dashboard():
         request.args.get("year", ""),
     )
     selected_date = clean_text(request.args.get("date", ""))
+    selected_team = clean_text(request.args.get("team", ""))
     selected_expert = normalize_person_name(request.args.get("expert", ""))
-    selected_manager = normalize_person_name(request.args.get("manager", ""))
-    selected_team_lead = normalize_person_name(request.args.get("team_lead", ""))
 
+    group_team = clean_text(request.args.get("group_team", ""))
     group_expert = normalize_person_name(request.args.get("group_expert", ""))
     group_manager = normalize_person_name(request.args.get("group_manager", ""))
     group_team_lead = normalize_person_name(request.args.get("group_team_lead", ""))
@@ -421,12 +417,7 @@ def po_dashboard():
         records = []
         load_error = str(exc)
 
-    selected_expert, selected_manager, selected_team_lead = enforce_po_filter_values(
-        selected_expert,
-        selected_manager,
-        selected_team_lead,
-        po_access,
-    )
+    selected_team, selected_expert = enforce_po_dashboard_filters(selected_team, selected_expert, po_access)
 
     month_counts = Counter(record["month_key"] for record in records if record["month_key"])
     month_options = [
@@ -445,22 +436,33 @@ def po_dashboard():
         and (not selected_date or record["mail_date"] == selected_date)
     ]
 
+    available_teams = sorted(
+        {record["team_name"] for record in temporal_records if record["team_name"]}
+    )
+    locked_team = po_lock["value"] if po_lock and po_lock["field"] == "team" else ""
+    if po_lock and not locked_team and len(available_teams) == 1:
+        locked_team = available_teams[0]
+    if locked_team and locked_team not in available_teams:
+        available_teams = [locked_team, *available_teams]
+    if locked_team:
+        selected_team = locked_team
     available_experts = sorted(
         {record["expert_name"] for record in temporal_records if record["expert_name"]}
     )
-    available_managers = sorted(
-        {record["manager_name"] for record in temporal_records if record["manager_name"]}
-    )
-    available_team_leads = sorted(
-        {record["team_lead_name"] for record in temporal_records if record["team_lead_name"]}
-    )
+    po_teams_map = {}
+    for record in temporal_records:
+        po_teams_map.setdefault(record["team_name"], set()).add(record["expert_name"])
+    po_teams_map = {
+        team_name: sorted(experts)
+        for team_name, experts in po_teams_map.items()
+        if team_name
+    }
 
     filtered_records = [
         record
         for record in temporal_records
-        if (not selected_expert or record["expert_name"] == selected_expert)
-        and (not selected_manager or record["manager_name"] == selected_manager)
-        and (not selected_team_lead or record["team_lead_name"] == selected_team_lead)
+        if (not selected_team or record["team_name"] == selected_team)
+        and (not selected_expert or record["expert_name"] == selected_expert)
     ]
 
     summary_rows = build_summary_rows(filtered_records)
@@ -471,7 +473,8 @@ def po_dashboard():
         selected_group_records = [
             record
             for record in filtered_records
-            if record["expert_name"] == group_expert
+            if (not group_team or record["team_name"] == group_team)
+            and record["expert_name"] == group_expert
             and record["manager_name"] == group_manager
             and record["team_lead_name"] == group_team_lead
         ]
@@ -479,6 +482,7 @@ def po_dashboard():
 
         if selected_group_records:
             selected_group = {
+                "team_name": group_team or selected_group_records[0]["team_name"],
                 "expert_name": group_expert,
                 "manager_name": group_manager,
                 "team_lead_name": group_team_lead,
@@ -509,12 +513,12 @@ def po_dashboard():
         month_options=month_options,
         selected_month=selected_month,
         selected_date=selected_date,
+        selected_team=selected_team,
         selected_expert=selected_expert,
-        selected_manager=selected_manager,
-        selected_team_lead=selected_team_lead,
+        available_teams=available_teams,
         available_experts=available_experts,
-        available_managers=available_managers,
-        available_team_leads=available_team_leads,
+        locked_team=locked_team,
+        po_teams_map=po_teams_map,
         summary_rows=summary_rows,
         selected_group=selected_group,
         selected_group_records=selected_group_records,
@@ -543,6 +547,8 @@ def po_candidate_dashboard():
         request.args.get("month", ""),
         request.args.get("year", ""),
     )
+    selected_team = clean_text(request.args.get("team", ""))
+    selected_expert = normalize_person_name(request.args.get("expert", ""))
 
     try:
         records = filter_records_for_po_access(fetch_po_records(get_supabase_client()), po_access)
@@ -550,6 +556,8 @@ def po_candidate_dashboard():
     except Exception as exc:
         records = []
         load_error = str(exc)
+
+    selected_team, selected_expert = enforce_po_dashboard_filters(selected_team, selected_expert, po_access)
 
     month_counts = Counter(record["month_key"] for record in records if record["month_key"])
     month_options = [
@@ -561,8 +569,36 @@ def po_candidate_dashboard():
         for month_key in sorted(month_counts.keys(), reverse=True)
     ]
 
-    filtered_records = [
+    temporal_records = [
         record for record in records if not selected_month or record["month_key"] == selected_month
+    ]
+    available_teams = sorted(
+        {record["team_name"] for record in temporal_records if record["team_name"]}
+    )
+    locked_team = po_lock["value"] if po_lock and po_lock["field"] == "team" else ""
+    if po_lock and not locked_team and len(available_teams) == 1:
+        locked_team = available_teams[0]
+    if locked_team and locked_team not in available_teams:
+        available_teams = [locked_team, *available_teams]
+    if locked_team:
+        selected_team = locked_team
+    available_experts = sorted(
+        {record["expert_name"] for record in temporal_records if record["expert_name"]}
+    )
+    po_teams_map = {}
+    for record in temporal_records:
+        po_teams_map.setdefault(record["team_name"], set()).add(record["expert_name"])
+    po_teams_map = {
+        team_name: sorted(experts)
+        for team_name, experts in po_teams_map.items()
+        if team_name
+    }
+
+    filtered_records = [
+        record
+        for record in temporal_records
+        if (not selected_team or record["team_name"] == selected_team)
+        and (not selected_expert or record["expert_name"] == selected_expert)
     ]
     month_sections = build_candidate_month_sections(filtered_records)
 
@@ -579,6 +615,12 @@ def po_candidate_dashboard():
         load_error=load_error,
         month_options=month_options,
         selected_month=selected_month,
+        selected_team=selected_team,
+        selected_expert=selected_expert,
+        available_teams=available_teams,
+        available_experts=available_experts,
+        locked_team=locked_team,
+        po_teams_map=po_teams_map,
         month_sections=month_sections,
         total_records=len(filtered_records),
         unique_candidates=unique_candidates,
@@ -600,9 +642,8 @@ def po_api_records():
         request.args.get("year", ""),
     )
     selected_date = clean_text(request.args.get("date", ""))
+    selected_team = clean_text(request.args.get("team", ""))
     selected_expert = normalize_person_name(request.args.get("expert", ""))
-    selected_manager = normalize_person_name(request.args.get("manager", ""))
-    selected_team_lead = normalize_person_name(request.args.get("team_lead", ""))
     limit = max(min(int(request.args.get("limit", 50)), 200), 1)
     offset = max(int(request.args.get("offset", 0)), 0)
 
@@ -611,21 +652,15 @@ def po_api_records():
     except Exception as exc:
         return jsonify({"success": False, "error": str(exc)}), 500
 
-    selected_expert, selected_manager, selected_team_lead = enforce_po_filter_values(
-        selected_expert,
-        selected_manager,
-        selected_team_lead,
-        po_access,
-    )
+    selected_team, selected_expert = enforce_po_dashboard_filters(selected_team, selected_expert, po_access)
 
     filtered_records = [
         record
         for record in records
         if (not selected_month or record["month_key"] == selected_month)
         and (not selected_date or record["mail_date"] == selected_date)
+        and (not selected_team or record["team_name"] == selected_team)
         and (not selected_expert or record["expert_name"] == selected_expert)
-        and (not selected_manager or record["manager_name"] == selected_manager)
-        and (not selected_team_lead or record["team_lead_name"] == selected_team_lead)
     ]
 
     paged_records = filtered_records[offset : offset + limit]

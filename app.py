@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 # Load environment variables from .env file BEFORE importing anything else
 load_dotenv()
 
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
 from flask_caching import Cache
 from routes.dashboard import dashboard_bp
 from routes.teams import teams_bp
@@ -13,9 +13,11 @@ from routes.analytics import analytics_bp
 from routes.kpi import kpi_bp
 from routes.po import po_bp
 from services.po_consumer import start_po_consumer
+from services.startup_warmup import start_startup_warmup
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "mega-dashboard-dev-secret-key")
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 86400
 
 # Configure caching for performance optimization
 cache = Cache(
@@ -23,7 +25,7 @@ cache = Cache(
     config={
         "CACHE_TYPE": "SimpleCache",  # In-memory cache for single-worker deployments
         "CACHE_DEFAULT_TIMEOUT": 300,  # 5 minutes default cache timeout
-        "CACHE_THRESHOLD": 500,  # Maximum number of items in cache
+        "CACHE_THRESHOLD": 2000,  # Keep more warm page/query results in memory
     },
 )
 
@@ -40,6 +42,7 @@ app.register_blueprint(po_bp, url_prefix="/po")
 
 # Start the optional PO Kafka consumer in persistent Flask runtimes.
 start_po_consumer()
+start_startup_warmup(app)
 
 
 # Health check endpoint
@@ -103,3 +106,21 @@ if __name__ == "__main__":
 
 # Vercel serverless handler
 application = app
+
+
+@app.after_request
+def apply_cache_headers(response):
+    cache_control = response.cache_control
+
+    if response.status_code != 200:
+        cache_control.no_store = True
+        return response
+
+    if request.path.startswith("/static/"):
+        cache_control.public = True
+        cache_control.max_age = 86400
+        cache_control.immutable = False
+    elif response.mimetype == "text/html":
+        cache_control.no_store = True
+
+    return response

@@ -1,89 +1,82 @@
-<!DOCTYPE html>
-<html lang="en" data-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="color-scheme" content="dark">
-    <title>PO Access - MEGA DASHBOARD</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
-        rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body class="po-access-body">
-    {% set toast_messages = get_flashed_messages(with_categories=true) %}
-    {% if toast_messages %}
-    <div class="toast-stack toast-stack-fixed">
-        {% for category, message in toast_messages %}
-        <div class="toast toast-{{ category }}" data-toast>
-            <div class="toast-copy">
-                <strong>
-                    {% if category == 'success' %}Success{% elif category == 'error' %}Error{% else %}Notice{% endif %}
-                </strong>
-                <span>{{ message }}</span>
-            </div>
-            <button type="button" class="toast-close" onclick="dismissToast(this)" aria-label="Dismiss notification">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
+{% extends "base.html" %}
+
+{% block page_title %}PO Access - MEGA DASHBOARD{% endblock %}
+{% block title %}PO Access{% endblock %}
+
+{% block content %}
+{% set toast_messages = get_flashed_messages(with_categories=true) %}
+{% if toast_messages %}
+<div class="toast-stack" id="po-access-toast-stack">
+    {% for category, message in toast_messages %}
+    <div class="toast toast-{{ category }}" data-toast>
+        <div class="toast-copy">
+            <strong>
+                {% if category == 'success' %}Success{% elif category == 'error' %}Error{% else %}Notice{% endif %}
+            </strong>
+            <span>{{ message }}</span>
+        </div>
+        <button type="button" class="toast-close" onclick="dismissToast(this)" aria-label="Dismiss notification">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+        </button>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="po-access-shell po-access-shell-inline">
+    <div class="po-access-card">
+        <div class="po-access-hero">
+            <div class="po-access-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <rect x="4" y="11" width="16" height="9" rx="2"></rect>
+                    <path d="M8 11V8a4 4 0 0 1 8 0v3"></path>
                 </svg>
-            </button>
-        </div>
-        {% endfor %}
-    </div>
-    {% endif %}
-
-    <div class="po-access-shell">
-        <div class="po-access-card">
-            <div class="po-access-hero">
-                <div class="po-access-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                        <rect x="4" y="11" width="16" height="9" rx="2"></rect>
-                        <path d="M8 11V8a4 4 0 0 1 8 0v3"></path>
-                    </svg>
-                </div>
-                <div>
-                    <h1>PO Page PIN Access</h1>
-                    <p>Use an all-view PIN for full PO access, or a team-scoped PIN to stay locked to one PO view.</p>
-                </div>
             </div>
-
-            <form method="POST" action="{{ url_for('po.po_access') }}" class="po-access-form">
-                <input type="hidden" name="next" value="{{ next_url }}">
-                <label for="pin">PO PIN</label>
-                <input id="pin" name="pin" type="password" inputmode="numeric" autocomplete="current-password" class="date-input po-access-input" required autofocus>
-                <button type="submit" class="btn btn-primary btn-block">Unlock PO Page</button>
-            </form>
-
-            <div class="po-access-note-panel">
-                <span>All-view PIN: full PO page and sync access.</span>
-                <span>Team PIN: locked to one configured PO team slice, with no switching to another team from the page.</span>
+            <div>
+                <h1>PO Page PIN Access</h1>
+                <p>Unlock the PO pages from inside the dashboard layout so the navigation stays consistent.</p>
             </div>
         </div>
+
+        <form method="POST" action="{{ url_for('po.po_access') }}" class="po-access-form">
+            <input type="hidden" name="next" value="{{ next_url }}">
+            <label for="pin">PO PIN</label>
+            <input id="pin" name="pin" type="password" inputmode="numeric" autocomplete="current-password" class="date-input po-access-input" required autofocus>
+            <button type="submit" class="btn btn-primary btn-block">Unlock PO Page</button>
+        </form>
+
+        <div class="po-access-note-panel">
+            <span>All-view PIN: full PO page and sync access.</span>
+            <span>Team PIN: locked to one configured team with no switching outside that access scope.</span>
+        </div>
     </div>
+</div>
+{% endblock %}
 
-    <script>
-        function dismissToast(button) {
-            const toast = button.closest('[data-toast]');
-            if (!toast) {
-                return;
-            }
+{% block scripts %}
+<script>
+    function dismissToast(button) {
+        const toast = button.closest('[data-toast]');
+        if (!toast) {
+            return;
+        }
 
+        toast.classList.add('toast-leaving');
+        window.setTimeout(function () {
+            toast.remove();
+        }, 220);
+    }
+
+    document.querySelectorAll('[data-toast]').forEach(function (toast) {
+        window.setTimeout(function () {
             toast.classList.add('toast-leaving');
             window.setTimeout(function () {
                 toast.remove();
             }, 220);
-        }
-
-        document.querySelectorAll('[data-toast]').forEach(function (toast) {
-            window.setTimeout(function () {
-                toast.classList.add('toast-leaving');
-                window.setTimeout(function () {
-                    toast.remove();
-                }, 220);
-            }, 4500);
-        });
-    </script>
-</body>
-</html>
+        }, 4500);
+    });
+</script>
+{% endblock %}

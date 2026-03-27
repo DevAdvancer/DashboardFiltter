@@ -7,8 +7,9 @@ and validates against candidateDetails.Expert field.
 
 import re
 from datetime import datetime
-from flask import Blueprint, jsonify, request, render_template
+from flask import Blueprint, current_app, jsonify, request, render_template
 from db import get_db
+from services.reference_data import get_kpi_round_titles, get_teams_reference
 
 kpi_bp = Blueprint('kpi', __name__)
 
@@ -72,18 +73,11 @@ def get_active_experts(db):
     Returns {email: {email, team}} map.
     """
     try:
-        from db import get_teams_db
-        teams_db = get_teams_db()
-        teams_cursor = teams_db.teams.find({}, {'name': 1, 'members': 1, '_id': 0})
-
-        experts = {}
-        for team in teams_cursor:
-            team_name = team.get('name', 'Unknown')
-            members = team.get('members', [])
-            for email in members:
-                if email and isinstance(email, str):
-                    experts[email.lower()] = {'email': email.lower(), 'team': team_name}
-        return experts
+        reference = get_teams_reference()
+        return {
+            email: {'email': email, 'team': team}
+            for email, team in reference['expert_to_team'].items()
+        }
     except Exception:
         return {}
 
@@ -95,18 +89,7 @@ def get_expert_team_map(db):
     Returns {email: team_name} map.
     """
     try:
-        from db import get_teams_db
-        teams_db = get_teams_db()
-        teams_cursor = teams_db.teams.find({}, {'name': 1, 'members': 1, '_id': 0})
-
-        expert_team_map = {}
-        for team in teams_cursor:
-            team_name = team.get('name', 'Unknown')
-            members = team.get('members', [])
-            for email in members:
-                if email and isinstance(email, str):
-                    expert_team_map[email.lower()] = team_name
-        return expert_team_map
+        return get_teams_reference()['expert_to_team']
     except Exception:
         return {}
 
@@ -132,18 +115,13 @@ def kpi_sidebar():
 
     # Get distinct interview titles (actualRound) for filter dropdown
     try:
-        rounds = db.taskBody.distinct('actualRound', {'status': 'Completed'})
-        # Filter out empty/None values and sort
-        round_titles = sorted([r for r in rounds if r and isinstance(r, str)])
+        round_titles = get_kpi_round_titles()
     except Exception:
         round_titles = []
 
     # Get teams for filter dropdown
     try:
-        from db import get_teams_db
-        teams_db = get_teams_db()
-        teams = list(teams_db.teams.find({}, {'name': 1, '_id': 0}))
-        team_names = sorted([t.get('name') for t in teams if t.get('name')])
+        team_names = get_teams_reference()['teams_list']
     except Exception:
         team_names = []
 
@@ -231,6 +209,18 @@ def api_matched_candidates():
         return jsonify({'success': False, 'error': 'Expert email required'}), 400
 
     try:
+        cache_key = "kpi:matched:{0}:{1}:{2}:{3}:{4}".format(
+            expert_email,
+            start_date or "all",
+            end_date or "all",
+            filter_round or "all",
+            ",".join(sorted(exclude_rounds)) or "none",
+        )
+        cache = current_app.cache
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return jsonify(cached)
+
         # Build query filters
         match_filters = {'status': 'Completed'}
         if filter_round:
@@ -297,14 +287,16 @@ def api_matched_candidates():
                 else:
                     unmatched.append({**info, 'status': 'not_found'})
 
-        return jsonify({
+        payload = {
             'success': True,
             'expert': expert_email,
             'matched': matched,
             'unmatched': unmatched,
             'total_matched': len(matched),
             'total_unmatched': len(unmatched)
-        })
+        }
+        cache.set(cache_key, payload, timeout=300)
+        return jsonify(payload)
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -320,6 +312,20 @@ def calculate_kpi_data(db, start_date='', end_date='', filter_team=None, filter_
     Returns:
         dict with 'experts' list and 'summary' totals
     """
+    exclude_rounds = exclude_rounds or []
+    cache_key = "kpi:data:{0}:{1}:{2}:{3}:{4}:{5}".format(
+        start_date or "all",
+        end_date or "all",
+        filter_team or "all",
+        filter_expert or "all",
+        filter_round or "all",
+        ",".join(sorted(exclude_rounds)) or "none",
+    )
+    cache = current_app.cache
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     # Get expert team mapping for filtering
     expert_team_map = get_expert_team_map(db)
 
@@ -466,7 +472,9 @@ def calculate_kpi_data(db, start_date='', end_date='', filter_team=None, filter_
         'avg_match_rate': round(avg_match_rate, 1)
     }
 
-    return {
+    value = {
         'experts': results,
         'summary': summary
     }
+    cache.set(cache_key, value, timeout=300)
+    return value

@@ -16,27 +16,42 @@ from po_security import (
     get_current_po_access,
     po_pin_security_enabled,
 )
-from routes.po import fetch_po_records, get_supabase_client, normalize_person_name
+from routes.po import fetch_po_records, get_supabase_client
+from services.reference_data import get_candidate_lookup_names, get_teams_reference
+from services.team_management import (
+    get_management_snapshot,
+    get_team_management_directory,
+    normalize_person_name,
+)
 
 candidates_bp = Blueprint('candidates', __name__)
 
 PO_MATCH_THRESHOLD = 0.8
 PO_RECORDS_CACHE_KEY = "expert_activity_po_records_v1"
+EXPERT_ACTIVITY_CACHE_VERSION = "v2"
 
 
 def get_team_options():
-    teams_db = get_teams_db()
-    teams_cursor = list(teams_db.teams.find({}, {"name": 1, "members": 1, "_id": 0}))
-    teams_map = {team["name"]: team.get("members", []) for team in teams_cursor if team.get("name")}
-    all_teams = sorted(list(teams_map.keys()))
+    reference = get_teams_reference()
+    return reference["teams_list"], reference["all_experts"], reference["teams_map"]
 
-    all_experts = set()
-    for members in teams_map.values():
-        for member in members:
-            all_experts.add(str(member).strip())
 
-    experts = sorted(list(all_experts))
-    return all_teams, experts, teams_map
+def expert_activity_cache_key(month_s, year_s, status_f, team_f, expert_f, include_all_candidates, exclude_rounds):
+    rounds_key = exclude_rounds
+    if isinstance(exclude_rounds, (list, tuple, set)):
+        rounds_key = ",".join(sorted(str(value).strip() for value in exclude_rounds if str(value).strip()))
+
+    return ":".join([
+        "candidate-activity",
+        EXPERT_ACTIVITY_CACHE_VERSION,
+        str(month_s or "all"),
+        str(year_s or "all"),
+        str(status_f or "all"),
+        str(team_f or "all"),
+        str(expert_f or "all"),
+        "full" if include_all_candidates else "active",
+        str(rounds_key or "none"),
+    ])
 
 
 def normalize_expert_match_name(value):
@@ -201,9 +216,7 @@ def candidate_lookup():
     candidate_name = request.args.get('name', '').strip()
 
     # Get list of all unique candidate names for autocomplete/dropdown - OPTIMIZED with limit
-    all_candidates = sorted(db.taskBody.distinct('Candidate Name', {
-        "Candidate Name": {"$type": "string", "$ne": ""}
-    }))[:500]  # Limit to 500 for dropdown performance
+    all_candidates = get_candidate_lookup_names(limit=500)
 
     candidate_data = None
     interview_records = []
@@ -320,12 +333,36 @@ def fetch_expert_activity_data(month_s, year_s, status_f, team_f=None, expert_f=
     """
     Shared function to fetch expert activity data.
     """
-    db = get_db()
-    teams_db = get_teams_db()
+    cache = getattr(current_app, "cache", None)
+    cache_key = expert_activity_cache_key(
+        month_s,
+        year_s,
+        status_f,
+        team_f,
+        expert_f,
+        include_all_candidates,
+        exclude_rounds,
+    )
+    cached = cache.get(cache_key) if cache else None
+    if cached is not None:
+        displayed_experts = cached["displayed_experts"]
+        po_counts_by_expert = build_po_counts_by_expert(month_s, year_s, displayed_experts)
+        hydrated_team_data = []
+        for team in cached["team_data"]:
+            experts = []
+            for expert in team["experts"]:
+                expert_copy = dict(expert)
+                expert_copy["po_count"] = po_counts_by_expert.get(expert_copy["expert"].lower(), 0)
+                experts.append(expert_copy)
+            team_copy = dict(team)
+            team_copy["experts"] = experts
+            hydrated_team_data.append(team_copy)
+        return hydrated_team_data, cached["summary"]
 
-    # Get teams
-    teams_cursor = teams_db.teams.find({}, {"name": 1, "members": 1, "_id": 0})
-    teams_map = {t['name']: t.get('members', []) for t in teams_cursor}
+    db = get_db()
+    management_directory = get_team_management_directory()
+    reference = get_teams_reference()
+    teams_map = reference["teams_map"]
 
     # Filter teams if team_f is provided
     if team_f and team_f in teams_map:
@@ -339,9 +376,17 @@ def fetch_expert_activity_data(month_s, year_s, status_f, team_f=None, expert_f=
         for member in members:
             expert_to_team[str(member).strip().lower()] = team_name
 
+    displayed_experts = []
+    for members in teams_map_filtered.values():
+        for expert in members:
+            expert_clean = str(expert).strip()
+            if expert_f and expert_clean != expert_f:
+                continue
+            if expert_clean:
+                displayed_experts.append(expert_clean)
+
     # Prepare match query for interviews based on Subject and Status
     match_query = {
-        "Candidate Name": {"$type": "string", "$ne": ""},
         "subject": {"$regex": f"{month_s}.*{year_s}", "$options": "i"}
     }
 
@@ -360,6 +405,25 @@ def fetch_expert_activity_data(month_s, year_s, status_f, team_f=None, expert_f=
             nor_conditions = [{"actualRound": {"$regex": r, "$options": "i"}} for r in rounds_to_exclude]
             if nor_conditions:
                  match_query["$nor"] = nor_conditions
+
+    candidate_query = {
+        "Candidate Name": {"$type": "string", "$ne": ""},
+        "Expert": {"$in": displayed_experts or ["__no_match__"]},
+    }
+    candidates = list(db.candidateDetails.find(
+        candidate_query,
+        {
+            "Candidate Name": 1,
+            "Expert": 1,
+            "Recruiter": 1,
+            "Branch": 1,
+            "status": 1,
+            "workflowStatus": 1,
+            "_id": 0,
+        }
+    ))
+    candidate_names = [cand.get("Candidate Name") for cand in candidates if cand.get("Candidate Name")]
+    match_query["Candidate Name"] = {"$in": candidate_names or ["__no_match__"]}
 
     # Query taskBody for interview details
     interview_pipeline = [
@@ -382,12 +446,6 @@ def fetch_expert_activity_data(month_s, year_s, status_f, team_f=None, expert_f=
 
     interview_results = list(db.taskBody.aggregate(interview_pipeline))
     candidate_interview_map = {r['_id']: {'count': r['InterviewCount'], 'details': r.get('InterviewDetails', [])} for r in interview_results}
-
-    # Get all candidates with their experts, Recruiter, and Branch
-    candidates = list(db.candidateDetails.find(
-        {"Candidate Name": {"$type": "string", "$ne": ""}, "Expert": {"$ne": None, "$ne": ""}},
-        {"Candidate Name": 1, "Expert": 1, "Recruiter": 1, "Branch": 1, "status": 1, "workflowStatus": 1, "_id": 0}
-    ))
 
     # Build per_candidate and per_expert lists
     per_candidate = []
@@ -492,15 +550,6 @@ def fetch_expert_activity_data(month_s, year_s, status_f, team_f=None, expert_f=
     # Map expert summaries (already created above)
     expert_summary = {(e.get("_id") or "").lower(): e for e in per_expert}
 
-    displayed_experts = []
-    for members in teams_map_filtered.values():
-        for expert in members:
-            expert_clean = str(expert).strip()
-            if expert_f and expert_clean != expert_f:
-                continue
-            if expert_clean:
-                displayed_experts.append(expert_clean)
-
     po_counts_by_expert = build_po_counts_by_expert(month_s, year_s, displayed_experts)
 
     # Build team_data using filtered teams map
@@ -547,12 +596,17 @@ def fetch_expert_activity_data(month_s, year_s, status_f, team_f=None, expert_f=
                 )
 
             sc = e.get("StatusCounts", {})
+            management = get_management_snapshot(expert_clean, directory=management_directory)
             expert_dict = {
                 'expert': expert_clean,
+                'expert_name': management['expert_name'] if management['expert_name'] != 'Unassigned' else (expert_clean.split('@')[0] if '@' in expert_clean else expert_clean),
                 'total': total_cnt,
                 'total_interviews': total_interviews,
                 'active': active_cnt,
                 'inactive': inactive_cnt,
+                'team_name': team_name,
+                'team_lead_name': management['team_lead_name'],
+                'manager_name': management['manager_name'],
                 'status_active': sc.get("Active", 0),
                 'status_backout': sc.get("Backout", 0),
                 'status_hold': sc.get("Hold", 0),
@@ -599,6 +653,23 @@ def fetch_expert_activity_data(month_s, year_s, status_f, team_f=None, expert_f=
         'teams_count': len(team_data),
         'date_range': f"{month_s} {year_s}"
     }
+
+    if cache:
+        cache.set(
+            cache_key,
+            {
+                "team_data": [
+                    {
+                        **team,
+                        "experts": [{**expert, "po_count": 0} for expert in team["experts"]],
+                    }
+                    for team in team_data
+                ],
+                "summary": summary,
+                "displayed_experts": displayed_experts,
+            },
+            timeout=300,
+        )
 
     return team_data, summary
 
@@ -880,18 +951,18 @@ def active_candidates():
                 else:
                     allowed_experts = {e_lower}
 
-            # Fetch candidates matching the allowed experts
-            candidates = db.candidateDetails.find(
-                {"Expert": {"$ne": None, "$ne": ""}},
-                {"Candidate Name": 1, "Expert": 1, "_id": 0}
+            expert_filters = [
+                {"Expert": {"$regex": f"^{re.escape(expert)}$", "$options": "i"}}
+                for expert in allowed_experts
+            ]
+            valid_names = db.candidateDetails.distinct(
+                "Candidate Name",
+                {
+                    "Candidate Name": {"$type": "string", "$ne": ""},
+                    "$or": expert_filters or [{"Expert": "__no_match__"}],
+                },
             )
-
-            valid_names = []
-            for c in candidates:
-                if str(c.get("Expert", "")).strip().lower() in allowed_experts:
-                    valid_names.append(c.get("Candidate Name"))
-
-            match_criteria["Candidate Name"] = {"$in": valid_names}
+            match_criteria["Candidate Name"] = {"$in": valid_names or ["__no_match__"]}
 
         # OPTIMIZED: Build aggregation pipeline with early filtering and limit
         pipeline = [

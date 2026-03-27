@@ -50,6 +50,46 @@
                         {% endfor %}
                     </select>
                 </div>
+                <div class="filter-item">
+                    <label>
+                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="9" cy="7" r="3" />
+                            <circle cx="15" cy="7" r="3" />
+                            <path d="M3 18c0-3 3-5 6-5" />
+                            <path d="M15 12c3 0 6 2 6 5" />
+                        </svg>
+                        Team
+                    </label>
+                    {% if locked_team %}
+                    <input type="hidden" name="team" value="{{ selected_team or locked_team }}">
+                    <select class="select-single" disabled>
+                        <option>{{ selected_team or locked_team }}</option>
+                    </select>
+                    <div class="filter-lock-note">Locked by PO PIN</div>
+                    {% else %}
+                    <select name="team" class="select-single">
+                        <option value="">All Teams</option>
+                        {% for team in available_teams %}
+                        <option value="{{ team }}" {% if selected_team == team %}selected{% endif %}>{{ team }}</option>
+                        {% endfor %}
+                    </select>
+                    {% endif %}
+                </div>
+                <div class="filter-item">
+                    <label>
+                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="8" r="4" />
+                            <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
+                        </svg>
+                        Expert
+                    </label>
+                    <select name="expert" class="select-single">
+                        <option value="">All Experts</option>
+                        {% for expert in available_experts %}
+                        <option value="{{ expert }}" {% if selected_expert == expert %}selected{% endif %}>{{ expert }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
                 <div class="filter-actions">
                     <button type="submit" class="btn btn-primary">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
@@ -61,7 +101,7 @@
                 </div>
             </div>
         </form>
-        <p class="filters-note">Month filter uses the same `received_at` month logic as the PO page.</p>
+        <p class="filters-note">Month filter uses the same `received_at` logic as the PO page, and team management values come from Mongo by expert match.</p>
     </div>
 
     <div class="stats-row stats-row-po-candidate">
@@ -120,6 +160,7 @@
                     <div class="po-candidate-item-title">{{ record.candidate_name_display }}</div>
                     <div class="po-candidate-item-line">
                         <span><strong>Support:</strong> {{ record.expert_name }}</span>
+                        <span><strong>Team:</strong> {{ record.team_name }}</span>
                         <span><strong>TL:</strong> {{ record.team_lead_name }}</span>
                         <span><strong>Mgr:</strong> {{ record.manager_name }}</span>
                     </div>
@@ -150,4 +191,10 @@
     </div>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block page_data %}
+<script>
+    window.teamsMap = {{ po_teams_map | tojson }};
+</script>
 {% endblock %}

@@ -247,8 +247,10 @@
                         <td>
                             <div class="expert-cell">
                                 <div class="expert-avatar small">{{ expert.expert[0]|upper }}</div>
-                                <span>{{ expert.expert.split('@')[0] if '@' in expert.expert else expert.expert
-                                    }}</span>
+                                <div class="expert-copy">
+                                    <span>{{ expert.expert_name }}</span>
+                                    <span class="expert-meta">{{ expert.team_lead_name }} | {{ expert.manager_name }}</span>
+                                </div>
                             </div>
                         </td>
                         <td class="text-center">

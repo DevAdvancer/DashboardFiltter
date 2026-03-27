@@ -57,15 +57,19 @@
                 </div>
                 <div class="detail-item">
                     <label>Expert Name</label>
-                    <span class="detail-value">{{ selected_record.interview_support_by or 'N/A' }}</span>
+                    <span class="detail-value">{{ selected_record.expert_name or 'N/A' }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Team</label>
+                    <span class="detail-value">{{ selected_record.team_name or 'N/A' }}</span>
                 </div>
                 <div class="detail-item">
                     <label>Team Lead</label>
-                    <span class="detail-value">{{ selected_record.team_lead or 'N/A' }}</span>
+                    <span class="detail-value">{{ selected_record.team_lead_name or 'N/A' }}</span>
                 </div>
                 <div class="detail-item">
                     <label>Manager</label>
-                    <span class="detail-value">{{ selected_record.manager or 'N/A' }}</span>
+                    <span class="detail-value">{{ selected_record.manager_name or 'N/A' }}</span>
                 </div>
                 <div class="detail-item">
                     <label>Received At</label>
@@ -163,6 +167,31 @@
                 <div class="filter-item">
                     <label>
                         <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="9" cy="7" r="3" />
+                            <circle cx="15" cy="7" r="3" />
+                            <path d="M3 18c0-3 3-5 6-5" />
+                            <path d="M15 12c3 0 6 2 6 5" />
+                        </svg>
+                        Team
+                    </label>
+                    {% if locked_team %}
+                    <input type="hidden" name="team" value="{{ selected_team or locked_team }}">
+                    <select class="select-single" disabled>
+                        <option>{{ selected_team or locked_team }}</option>
+                    </select>
+                    <div class="filter-lock-note">Locked by PO PIN</div>
+                    {% else %}
+                    <select name="team" class="select-single">
+                        <option value="">All Teams</option>
+                        {% for team in available_teams %}
+                        <option value="{{ team }}" {% if selected_team == team %}selected{% endif %}>{{ team }}</option>
+                        {% endfor %}
+                    </select>
+                    {% endif %}
+                </div>
+                <div class="filter-item">
+                    <label>
+                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="12" cy="8" r="4" />
                             <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
                         </svg>
@@ -183,53 +212,6 @@
                     </select>
                     {% endif %}
                 </div>
-                <div class="filter-item">
-                    <label>
-                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
-                            <circle cx="9" cy="7" r="4" />
-                        </svg>
-                        Manager Name
-                    </label>
-                    {% if po_lock and po_lock.field == 'manager' %}
-                    <input type="hidden" name="manager" value="{{ selected_manager or po_lock.value }}">
-                    <select class="select-single" disabled>
-                        <option>{{ selected_manager or po_lock.value }}</option>
-                    </select>
-                    <div class="filter-lock-note">Locked by PO PIN</div>
-                    {% else %}
-                    <select name="manager" class="select-single">
-                        <option value="">All Managers</option>
-                        {% for manager in available_managers %}
-                        <option value="{{ manager }}" {% if selected_manager == manager %}selected{% endif %}>{{ manager }}</option>
-                        {% endfor %}
-                    </select>
-                    {% endif %}
-                </div>
-                <div class="filter-item">
-                    <label>
-                        <svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="9" cy="7" r="3" />
-                            <circle cx="15" cy="7" r="3" />
-                            <path d="M3 18c0-3 3-5 6-5" />
-                        </svg>
-                        Team Lead Name
-                    </label>
-                    {% if po_lock and po_lock.field == 'team_lead' %}
-                    <input type="hidden" name="team_lead" value="{{ selected_team_lead or po_lock.value }}">
-                    <select class="select-single" disabled>
-                        <option>{{ selected_team_lead or po_lock.value }}</option>
-                    </select>
-                    <div class="filter-lock-note">Locked by PO PIN</div>
-                    {% else %}
-                    <select name="team_lead" class="select-single">
-                        <option value="">All Team Leads</option>
-                        {% for team_lead in available_team_leads %}
-                        <option value="{{ team_lead }}" {% if selected_team_lead == team_lead %}selected{% endif %}>{{ team_lead }}</option>
-                        {% endfor %}
-                    </select>
-                    {% endif %}
-                </div>
                 <div class="filter-actions">
                     <button type="submit" class="btn btn-primary">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
@@ -241,15 +223,15 @@
                 </div>
             </div>
         </form>
-        <p class="filters-note">Month and date segmentation is derived from the `received_at` value stored in Supabase.</p>
+        <p class="filters-note">Month and date segmentation comes from `received_at`, and the expert dropdown stays mapped to the selected team using Mongo team management.</p>
         <div class="po-sync-actions">
             {% if can_fetch_new %}
             <form method="POST" action="{{ url_for('po.po_fetch_new') }}">
                 <input type="hidden" name="month" value="{{ selected_month or '' }}">
                 <input type="hidden" name="date" value="{{ selected_date or '' }}">
+                <input type="hidden" name="team" value="{{ selected_team or '' }}">
                 <input type="hidden" name="expert" value="{{ selected_expert or '' }}">
-                <input type="hidden" name="manager" value="{{ selected_manager or '' }}">
-                <input type="hidden" name="team_lead" value="{{ selected_team_lead or '' }}">
+                <input type="hidden" name="group_team" value="{{ selected_group.team_name if selected_group else '' }}">
                 <input type="hidden" name="group_expert" value="{{ selected_group.expert_name if selected_group else '' }}">
                 <input type="hidden" name="group_manager" value="{{ selected_group.manager_name if selected_group else '' }}">
                 <input type="hidden" name="group_team_lead" value="{{ selected_group.team_lead_name if selected_group else '' }}">
@@ -367,7 +349,7 @@
         </div>
         <div class="month-grid">
             {% for month in month_options %}
-            <a href="{{ url_for('po.po_dashboard', month=month.value, expert=selected_expert or None, manager=selected_manager or None, team_lead=selected_team_lead or None) }}"
+            <a href="{{ url_for('po.po_dashboard', month=month.value, team=selected_team or None, expert=selected_expert or None) }}"
                class="month-card {% if selected_month == month.value %}active{% endif %}">
                 <span class="month-name">{{ month.label }}</span>
                 <span class="month-year">Received At</span>
@@ -390,13 +372,14 @@
                 </svg>
                 Candidate List For Selected PO Group
             </h3>
-            <a href="{{ url_for('po.po_dashboard', month=selected_month or None, date=selected_date or None, expert=selected_expert or None, manager=selected_manager or None, team_lead=selected_team_lead or None) }}" class="btn btn-ghost btn-sm">
+            <a href="{{ url_for('po.po_dashboard', month=selected_month or None, date=selected_date or None, team=selected_team or None, expert=selected_expert or None) }}" class="btn btn-ghost btn-sm">
                 Close View
             </a>
         </div>
         <div class="po-group-meta">
             <span><strong>Dates Covered:</strong> {{ selected_group.date_label }}</span>
             <span><strong>Date Buckets:</strong> {{ selected_group.date_count }}</span>
+            <span><strong>Team:</strong> {{ selected_group.team_name }}</span>
             <span><strong>Expert:</strong> {{ selected_group.expert_name }}</span>
             <span><strong>Manager:</strong> {{ selected_group.manager_name }}</span>
             <span><strong>Team Lead:</strong> {{ selected_group.team_lead_name }}</span>
@@ -419,7 +402,7 @@
                     <tr>
                         <td>{{ record.received_at_display }}</td>
                         <td>
-                            <a href="{{ url_for('po.po_dashboard', month=selected_month or None, date=selected_date or None, expert=selected_expert or None, manager=selected_manager or None, team_lead=selected_team_lead or None, group_expert=selected_group.expert_name, group_manager=selected_group.manager_name, group_team_lead=selected_group.team_lead_name, record=record.record_id) }}" class="candidate-link">
+                            <a href="{{ url_for('po.po_dashboard', month=selected_month or None, date=selected_date or None, team=selected_team or None, expert=selected_expert or None, group_team=selected_group.team_name, group_expert=selected_group.expert_name, group_manager=selected_group.manager_name, group_team_lead=selected_group.team_lead_name, record=record.record_id) }}" class="candidate-link">
                                 {{ record.candidate_name_display }}
                             </a>
                         </td>
@@ -453,6 +436,7 @@
                 <thead>
                     <tr>
                         <th>Dates Covered</th>
+                        <th>Team</th>
                         <th>Expert Name</th>
                         <th>Manager Name</th>
                         <th>Team Lead Name</th>
@@ -469,6 +453,7 @@
                             <div class="table-subtext">{{ row.date_count }} dates</div>
                             {% endif %}
                         </td>
+                        <td>{{ row.team_name }}</td>
                         <td>{{ row.expert_name }}</td>
                         <td>{{ row.manager_name }}</td>
                         <td>{{ row.team_lead_name }}</td>
@@ -476,7 +461,7 @@
                             <span class="count-badge primary">{{ row.po_count }}</span>
                         </td>
                         <td>
-                            <a href="{{ url_for('po.po_dashboard', month=selected_month or None, date=selected_date or None, expert=selected_expert or None, manager=selected_manager or None, team_lead=selected_team_lead or None, group_expert=row.expert_name, group_manager=row.manager_name, group_team_lead=row.team_lead_name) }}" class="btn btn-ghost btn-sm">
+                            <a href="{{ url_for('po.po_dashboard', month=selected_month or None, date=selected_date or None, team=selected_team or None, expert=selected_expert or None, group_team=row.team_name, group_expert=row.expert_name, group_manager=row.manager_name, group_team_lead=row.team_lead_name) }}" class="btn btn-ghost btn-sm">
                                 View
                             </a>
                         </td>
@@ -496,6 +481,12 @@
         {% endif %}
     </div>
 </div>
+{% endblock %}
+
+{% block page_data %}
+<script>
+    window.teamsMap = {{ po_teams_map | tojson }};
+</script>
 {% endblock %}
 
 {% block scripts %}

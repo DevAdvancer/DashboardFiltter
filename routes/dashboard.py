@@ -1,8 +1,9 @@
 
-from flask import Blueprint, render_template, request, current_app
-from db import get_db, get_teams_db
-from datetime import datetime, timedelta
+from flask import Blueprint, render_template, current_app
+from db import get_db
+from datetime import datetime
 from collections import Counter
+from services.reference_data import get_teams_reference
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
@@ -16,96 +17,66 @@ def index():
     def get_dashboard_data():
         db = get_db()
 
-        # ==========================================
-        # OPTIMIZATION 1: Combine multiple candidate queries into ONE aggregation
-        # ==========================================
-        candidate_stats_pipeline = [
-            {
-                "$facet": {
-                    "total": [{"$count": "count"}],
-                    "by_status": [
-                        {"$group": {"_id": "$workflowStatus", "count": {"$sum": 1}}},
-                        {"$sort": {"count": -1}}
-                    ],
-                    "by_tech": [
-                        {"$match": {"Technology": {"$ne": None, "$ne": ""}}},
-                        {"$group": {"_id": "$Technology", "count": {"$sum": 1}}},
-                        {"$sort": {"count": -1}},
-                        {"$limit": 10}
-                    ],
-                    "by_branch": [
-                        {"$match": {"Branch": {"$ne": None, "$ne": ""}}},
-                        {"$group": {"_id": "$Branch", "count": {"$sum": 1}}},
-                        {"$sort": {"count": -1}},
-                        {"$limit": 8}
-                    ],
-                    "recent": [
-                        {"$sort": {"updated_at": -1}},
-                        {"$limit": 10},
-                        {"$project": {
-                            "_id": 1,
-                            "Candidate Name": 1,
-                            "workflowStatus": 1,
-                            "updated_at": 1
-                        }}
-                    ]
-                }
-            }
+        # Focused queries are faster than a large $facet on this dataset.
+        candidate_status_rows = list(db.candidateDetails.aggregate([
+            {"$group": {"_id": "$workflowStatus", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}},
+        ]))
+        status_breakdown = {(row.get("_id") or "Unknown"): row["count"] for row in candidate_status_rows}
+        total_candidates = sum(row["count"] for row in candidate_status_rows)
+
+        technology_distribution = [
+            {"name": row["_id"], "count": row["count"]}
+            for row in db.candidateDetails.aggregate([
+                {"$match": {"Technology": {"$nin": [None, ""]}}},
+                {"$group": {"_id": "$Technology", "count": {"$sum": 1}}},
+                {"$sort": {"count": -1}},
+                {"$limit": 10},
+            ])
         ]
 
-        candidate_stats = list(db.candidateDetails.aggregate(candidate_stats_pipeline))[0]
+        branch_distribution = [
+            {"name": row["_id"], "count": row["count"]}
+            for row in db.candidateDetails.aggregate([
+                {"$match": {"Branch": {"$nin": [None, ""]}}},
+                {"$group": {"_id": "$Branch", "count": {"$sum": 1}}},
+                {"$sort": {"count": -1}},
+                {"$limit": 8},
+            ])
+        ]
 
-        total_candidates = candidate_stats["total"][0]["count"] if candidate_stats["total"] else 0
-        status_breakdown = {(s.get("_id") or "Unknown"): s["count"] for s in candidate_stats["by_status"]}
-        technology_distribution = [{"name": t["_id"], "count": t["count"]} for t in candidate_stats["by_tech"]]
-        branch_distribution = [{"name": b["_id"], "count": b["count"]} for b in candidate_stats["by_branch"]]
-        recent_candidates = candidate_stats["recent"]
+        recent_candidates = list(db.candidateDetails.find({}, {
+            "_id": 1,
+            "Candidate Name": 1,
+            "Technology": 1,
+            "workflowStatus": 1,
+            "updated_at": 1,
+        }).sort("updated_at", -1).limit(10))
 
         active_count = status_breakdown.get("active", 0)
         scheduled_count = status_breakdown.get("scheduled", 0)
         rejected_count = status_breakdown.get("rejected", 0)
         completed_count = status_breakdown.get("completed", 0)
 
-        # ==========================================
-        # OPTIMIZATION 2: Combine multiple interview queries into ONE aggregation
-        # ==========================================
-        interview_stats_pipeline = [
-            {
-                "$facet": {
-                    "total": [{"$count": "count"}],
-                    "by_status": [
-                        {"$group": {"_id": "$status", "count": {"$sum": 1}}}
-                    ],
-                    "top_experts": [
-                        {"$match": {"status": "Completed", "assignedTo": {"$type": "string", "$ne": ""}}},
-                        {"$group": {"_id": "$assignedTo", "interview_count": {"$sum": 1}}},
-                        {"$sort": {"interview_count": -1}},
-                        {"$limit": 10}
-                    ],
-                    "funnel_rounds": [
-                        {"$match": {
-                            "status": "Completed",
-                            "actualRound": {"$nin": ["On demand", "On Demand or AI Interview", None, ""]}
-                        }},
-                        {"$project": {"actualRound": 1}}
-                    ]
-                }
-            }
-        ]
-
-        interview_stats = list(db.taskBody.aggregate(interview_stats_pipeline))[0]
-
-        total_interviews = interview_stats["total"][0]["count"] if interview_stats["total"] else 0
-        interview_status = {s["_id"]: s["count"] for s in interview_stats["by_status"]}
+        interview_status_rows = list(db.taskBody.aggregate([
+            {"$group": {"_id": "$status", "count": {"$sum": 1}}},
+        ]))
+        interview_status = {row.get("_id") or "Unknown": row["count"] for row in interview_status_rows}
+        total_interviews = sum(row["count"] for row in interview_status_rows)
         completed_interviews = interview_status.get("Completed", 0)
         cancelled_interviews = interview_status.get("Cancelled", 0)
         rescheduled_interviews = interview_status.get("Rescheduled", 0)
 
-        top_experts = [{"name": e["_id"], "count": e["interview_count"]} for e in interview_stats["top_experts"]]
+        top_experts = [
+            {"name": row["_id"], "count": row["interview_count"]}
+            for row in db.taskBody.aggregate([
+                {"$match": {"status": "Completed", "assignedTo": {"$type": "string", "$ne": ""}}},
+                {"$group": {"_id": "$assignedTo", "interview_count": {"$sum": 1}}},
+                {"$sort": {"interview_count": -1}},
+                {"$limit": 10},
+            ])
+        ]
 
-        # ==========================================
-        # OPTIMIZATION 3: Process funnel data from already loaded data
-        # ==========================================
         ROUND_BUCKETS = {
             "screening": "Screening",
             "1st round": "1st",
@@ -128,10 +99,18 @@ def index():
             return ROUND_BUCKETS.get(key)
 
         stage_counts = Counter()
-        for task in interview_stats["funnel_rounds"]:
-            stage = normalize_round(task.get("actualRound"))
+        for row in db.taskBody.aggregate([
+            {
+                "$match": {
+                    "status": "Completed",
+                    "actualRound": {"$nin": ["On demand", "On Demand or AI Interview", None, ""]},
+                }
+            },
+            {"$group": {"_id": "$actualRound", "count": {"$sum": 1}}},
+        ]):
+            stage = normalize_round(row.get("_id"))
             if stage:
-                stage_counts[stage] += 1
+                stage_counts[stage] += row["count"]
 
         funnel_stages = {
             "Screening": stage_counts.get("Screening", 0),
@@ -154,23 +133,16 @@ def index():
             }
         }
 
-        # ==========================================
-        # OPTIMIZATION 4: Get teams and calculate counts efficiently (single aggregation)
-        # ==========================================
-        teams_db = get_teams_db()
-        teams_cursor = teams_db.teams.find({}, {"name": 1, "members": 1, "_id": 0})
-        teams_map = {t["name"]: t["members"] for t in teams_cursor}
+        teams_reference = get_teams_reference()
+        teams_map = teams_reference["teams_map"]
 
         # Build expert -> team mapping
-        expert_to_team = {}
-        for team_name, members in teams_map.items():
-            for member in members:
-                expert_to_team[member] = team_name
+        expert_to_team = teams_reference["expert_to_team"]
 
         # Single aggregation for all team members
         if expert_to_team:
             team_counts_pipeline = [
-                {"$match": {"status": "Completed", "assignedTo": {"$in": list(expert_to_team.keys())}}},
+                {"$match": {"status": "Completed", "assignedTo": {"$in": teams_reference["all_experts"]}}},
                 {"$group": {"_id": "$assignedTo", "count": {"$sum": 1}}}
             ]
             expert_counts = list(db.taskBody.aggregate(team_counts_pipeline))
@@ -179,7 +151,7 @@ def index():
             team_interview_counts = {team: 0 for team in teams_map.keys()}
             for expert_count in expert_counts:
                 expert = expert_count["_id"]
-                team = expert_to_team.get(expert)
+                team = expert_to_team.get(str(expert).lower())
                 if team:
                     team_interview_counts[team] += expert_count["count"]
 
@@ -191,32 +163,69 @@ def index():
         else:
             top_teams = []
 
-        # ==========================================
-        # OPTIMIZATION 5: Monthly trends - simplified
-        # ==========================================
         monthly_data = []
         today = datetime.now()
+        current_month_start = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-        for i in range(5, -1, -1):
-            month_start = today - timedelta(days=30 * (i + 1))
-            month_end = today - timedelta(days=30 * i)
+        def shift_month(dt, delta):
+            month_index = (dt.year * 12 + dt.month - 1) + delta
+            year = month_index // 12
+            month = month_index % 12 + 1
+            return dt.replace(year=year, month=month, day=1)
 
-            # Use count with limit for performance
-            month_count = db.candidateDetails.count_documents({
-                "updated_at": {"$gte": month_start, "$lt": month_end}
-            })
+        month_starts = [shift_month(current_month_start, offset) for offset in range(-5, 1)]
+        next_month_start = shift_month(current_month_start, 1)
+        first_month_start = month_starts[0]
 
-            month_interviews = db.taskBody.count_documents({
-                "receivedDateTime": {
-                    "$gte": month_start.isoformat(),
-                    "$lt": month_end.isoformat()
+        candidate_month_counts = {
+            row["_id"]: row["count"]
+            for row in db.candidateDetails.aggregate([
+                {
+                    "$match": {
+                        "updated_at": {"$gte": first_month_start, "$lt": next_month_start}
+                    }
+                },
+                {
+                    "$group": {
+                        "_id": {"$dateToString": {"format": "%Y-%m", "date": "$updated_at"}},
+                        "count": {"$sum": 1}
+                    }
                 }
-            })
+            ])
+        }
 
+        interview_month_counts = {
+            row["_id"]: row["count"]
+            for row in db.taskBody.aggregate([
+                {
+                    "$match": {
+                        "receivedDateTime": {
+                            "$gte": first_month_start.isoformat(),
+                            "$lt": next_month_start.isoformat()
+                        }
+                    }
+                },
+                {
+                    "$project": {
+                        "_id": 0,
+                        "month": {"$substr": ["$receivedDateTime", 0, 7]}
+                    }
+                },
+                {
+                    "$group": {
+                        "_id": "$month",
+                        "count": {"$sum": 1}
+                    }
+                }
+            ])
+        }
+
+        for month_start in month_starts:
+            month_key = month_start.strftime("%Y-%m")
             monthly_data.append({
                 "month": month_start.strftime("%b %Y"),
-                "candidates": month_count,
-                "interviews": month_interviews
+                "candidates": candidate_month_counts.get(month_key, 0),
+                "interviews": interview_month_counts.get(month_key, 0)
             })
 
         return {

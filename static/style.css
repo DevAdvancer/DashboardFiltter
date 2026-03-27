@@ -1659,6 +1659,17 @@ select option {
     gap: 10px;
 }
 
+.expert-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.expert-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
 .expert-info-inline {
     display: flex;
     flex-direction: column;
@@ -5408,6 +5419,11 @@ select {
 
 .po-access-shell {
     width: min(100%, 520px);
+}
+
+.po-access-shell-inline {
+    margin: 0 auto;
+    padding: 24px 0;
 }
 
 .po-access-card {

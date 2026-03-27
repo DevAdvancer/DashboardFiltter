@@ -1,10 +1,17 @@
 from flask import Blueprint, render_template, request, jsonify, current_app, send_file
-from db import get_db, get_teams_db
+from db import get_db
 from datetime import datetime
 from collections import Counter, defaultdict
+from functools import lru_cache
 import pandas as pd
 import re
 from io import BytesIO
+from services.reference_data import (
+    get_active_expert_emails,
+    get_active_task_experts,
+    get_export_filter_options,
+    get_teams_reference,
+)
 
 analytics_bp = Blueprint('analytics', __name__)
 
@@ -59,54 +66,22 @@ def get_date_filter_strings():
 
 
 def get_active_experts(db):
-    """
-    Get list of active expert emails from users collection - CACHED.
-    Only returns experts where:
-    - manager = "Harsh Patel"
-    - active = true
-    """
-    cache = current_app.cache
-
-    @cache.memoize(timeout=600)  # Cache for 10 minutes
-    def _get_active_experts_cached():
-        users_collection = db.users
-        active_experts_cursor = users_collection.find(
-            {
-                "manager": "Harsh Patel",
-                "active": True
-            },
-            {
-                "email": 1,
-                "_id": 0
-            }
-        )
-
-        # Return set of lowercase emails for easy lookup
-        active_expert_emails = {user['email'].lower() for user in active_experts_cursor if user.get('email')}
-        return active_expert_emails
-
-    return _get_active_experts_cached()
+    return set(get_active_expert_emails())
 
 
 def get_expert_team_map(db=None):
-    """Build expert -> team mapping from teams database - CACHED."""
-    cache = current_app.cache
+    reference = get_teams_reference()
+    return reference["expert_to_team"], reference["teams_map"]
 
-    @cache.memoize(timeout=600)  # Cache for 10 minutes
-    def _get_expert_team_map_cached():
-        teams_db = get_teams_db()
-        # Use projection to only get needed fields
-        teams_cursor = teams_db.teams.find({}, {"name": 1, "members": 1, "_id": 0})
-        teams_map = {t['name']: t.get('members', []) for t in teams_cursor}
 
-        expert_team_map = {}
-        for team_name, members in teams_map.items():
-            for member in members:
-                expert_team_map[str(member).lower()] = team_name
+def get_analytics_filter_options(completed_only=True):
+    reference = get_teams_reference()
+    return reference["teams_list"], get_active_task_experts(completed_only=completed_only), reference["teams_map"]
 
-        return expert_team_map, teams_map
 
-    return _get_expert_team_map_cached()
+def analytics_cache_key(name, *parts):
+    serialized = ":".join(str(part) if part not in (None, "") else "all" for part in parts)
+    return f"analytics:{name}:{serialized}"
 
 
 def build_task_query(start_date='', end_date=''):
@@ -153,6 +128,12 @@ def get_expert_funnel_data(db, start_date='', end_date='', filter_team=None, fil
 
     Experts that do not meet active filters will NOT appear in output.
     """
+    cache = current_app.cache
+    cache_key = analytics_cache_key("expert-funnel", start_date, end_date, filter_team, filter_expert)
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     # Get active experts first
     active_experts = get_active_experts(db)
 
@@ -164,11 +145,9 @@ def get_expert_funnel_data(db, start_date='', end_date='', filter_team=None, fil
     # Get all completed tasks with LIMIT for performance
     docs = list(db.taskBody.find(match_filters, {
         "assignedTo": 1,
-        "Candidate Name": 1,
         "actualRound": 1,
-        "receivedDateTime": 1,
         "_id": 0
-    }).limit(50000))  # Limit to prevent loading too much data
+    }).limit(50000))
 
     # Aggregate by expert and stage
     expert_stage_counts = defaultdict(lambda: Counter())
@@ -187,130 +166,25 @@ def get_expert_funnel_data(db, start_date='', end_date='', filter_team=None, fil
     # Build expert stats with filtration
     expert_stats = []
     for expert, stages in expert_stage_counts.items():
-        # Step 0: Check if expert is active (manager="Harsh Patel" and active=true)
         if str(expert).lower() not in active_experts:
-            continue  # Skip inactive experts
+            continue
 
-        # Step 1: Determine expert's team (case-insensitive)
         team_name = expert_team_map.get(str(expert).lower(), "Unmapped")
-
-        # Step 2: Apply Team Filter
-        # If filter_team is set, expert must belong to that team
         if filter_team is not None and team_name != filter_team:
-            continue  # Skip experts not in the filtered team
-
-        # Step 3: Apply Expert Filter
-        # If filter_expert is set, expert email must match exactly
+            continue
         if filter_expert is not None and expert != filter_expert:
-            continue  # Skip experts that don't match the filter
+            continue
 
-        # Expert passed all filters - include in results
         scr = stages.get("Screening", 0)
         r1 = stages.get("1st", 0)
         r2 = stages.get("2nd", 0)
         r3 = stages.get("3rd/Technical", 0)
         fin = stages.get("Final", 0)
-
-        # Interview count = 1st + 2nd + 3rd + Final (excludes Screening)
         total_interviews = r1 + r2 + r3 + fin
-
-        # Conversion rates
-        scr_to_1st = pct(r1, scr)
-        first_to_second = pct(r2, r1)
-        second_to_third = pct(r3, r2)
-        third_to_final = pct(fin, r3)
 
         expert_stats.append({
             'expert': expert,
             'team': team_name,
-            'interview_count': total_interviews,
-            'screening': scr,
-            'first': r1,
-            'second': r2,
-            'third_tech': r3,
-            'final': fin,
-            'screening_to_1st': scr_to_1st,
-            'first_to_2nd': first_to_second,
-            'second_to_3rd': second_to_third,
-            'third_to_final': third_to_final,
-        })
-
-    # Sort by ScreeningTO1st conversion, then interview volume
-    expert_stats.sort(key=lambda x: (x['screening_to_1st'], x['interview_count']), reverse=True)
-
-    # Add rank (based on filtered results)
-    for idx, stat in enumerate(expert_stats):
-        stat['rank'] = idx + 1
-
-    return expert_stats, teams_map
-
-
-def get_team_funnel_data(db, start_date='', end_date='', filter_team=None, filter_expert=None):
-    """
-    Get team funnel data from taskBody collection.
-
-    Filtration Rules:
-    1. If filter_team is set: only include that team
-    2. If filter_expert is set: only include that expert's data within teams
-    3. If both are set: expert must belong to filter_team AND match filter_expert
-    4. Team aggregations only include data from experts that pass all filters
-    """
-    expert_team_map, teams_map = get_expert_team_map(db)
-
-    # IMPORTANT: Get expert funnel data WITH the same filters applied
-    # This ensures alignment - filtered-out experts won't contribute to team totals
-    expert_stats, _ = get_expert_funnel_data(db, start_date, end_date, filter_team, filter_expert)
-
-    # Create expert -> stats map (only contains filtered experts)
-    expert_stats_map = {stat['expert']: stat for stat in expert_stats}
-
-    # Aggregate by team
-    team_stats = []
-    for team_name, members in teams_map.items():
-        # Apply team filter: skip teams that don't match
-        if filter_team and team_name != filter_team:
-            continue
-
-        # Determine effective members based on filters
-        effective_members = members
-
-        # If filtering by expert, only include that expert in this team
-        if filter_expert:
-            effective_members = [m for m in members if m == filter_expert]
-            # If this team doesn't contain the filtered expert, skip the team entirely
-            if not effective_members:
-                continue
-
-        # Aggregate stages ONLY from filtered experts
-        # (expert_stats_map only contains experts that passed all filters)
-        agg = Counter()
-        contributing_members = 0
-        for member in effective_members:
-            stats = expert_stats_map.get(member)
-            if stats:
-                contributing_members += 1
-                agg['Screening'] += stats['screening']
-                agg['1st'] += stats['first']
-                agg['2nd'] += stats['second']
-                agg['3rd/Technical'] += stats['third_tech']
-                agg['Final'] += stats['final']
-
-        # Skip teams with no contributing members (all filtered out)
-        if contributing_members == 0:
-            continue
-
-        scr = agg.get("Screening", 0)
-        r1 = agg.get("1st", 0)
-        r2 = agg.get("2nd", 0)
-        r3 = agg.get("3rd/Technical", 0)
-        fin = agg.get("Final", 0)
-
-        total_interviews = r1 + r2 + r3 + fin
-
-        team_stats.append({
-            'team': team_name,
-            'member_count': len(members),  # Total team members
-            'active_member_count': contributing_members,  # Members with data after filtering
             'interview_count': total_interviews,
             'screening': scr,
             'first': r1,
@@ -323,14 +197,93 @@ def get_team_funnel_data(db, start_date='', end_date='', filter_team=None, filte
             'third_to_final': pct(fin, r3),
         })
 
-    # Sort by ScreeningTO1st conversion, then interview volume
+    expert_stats.sort(key=lambda x: (x['screening_to_1st'], x['interview_count']), reverse=True)
+
+    for idx, stat in enumerate(expert_stats):
+        stat['rank'] = idx + 1
+
+    value = (expert_stats, teams_map)
+    cache.set(cache_key, value, timeout=300)
+    return value
+
+
+def get_team_funnel_data(db, start_date='', end_date='', filter_team=None, filter_expert=None):
+    """
+    Get team funnel data from taskBody collection.
+
+    Filtration Rules:
+    1. If filter_team is set: only include that team
+    2. If filter_expert is set: only include that expert's data within teams
+    3. If both are set: expert must belong to filter_team AND match filter_expert
+    4. Team aggregations only include data from experts that pass all filters
+    """
+    cache = current_app.cache
+    cache_key = analytics_cache_key("team-funnel", start_date, end_date, filter_team, filter_expert)
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    _, teams_map = get_expert_team_map(db)
+    expert_stats, _ = get_expert_funnel_data(db, start_date, end_date, filter_team, filter_expert)
+    expert_stats_map = {stat['expert']: stat for stat in expert_stats}
+
+    team_stats = []
+    for team_name, members in teams_map.items():
+        if filter_team and team_name != filter_team:
+            continue
+
+        effective_members = members
+        if filter_expert:
+            effective_members = [member for member in members if member == filter_expert]
+            if not effective_members:
+                continue
+
+        agg = Counter()
+        contributing_members = 0
+        for member in effective_members:
+            stats = expert_stats_map.get(member)
+            if stats:
+                contributing_members += 1
+                agg['Screening'] += stats['screening']
+                agg['1st'] += stats['first']
+                agg['2nd'] += stats['second']
+                agg['3rd/Technical'] += stats['third_tech']
+                agg['Final'] += stats['final']
+
+        if contributing_members == 0:
+            continue
+
+        scr = agg.get("Screening", 0)
+        r1 = agg.get("1st", 0)
+        r2 = agg.get("2nd", 0)
+        r3 = agg.get("3rd/Technical", 0)
+        fin = agg.get("Final", 0)
+        total_interviews = r1 + r2 + r3 + fin
+
+        team_stats.append({
+            'team': team_name,
+            'member_count': len(members),
+            'active_member_count': contributing_members,
+            'interview_count': total_interviews,
+            'screening': scr,
+            'first': r1,
+            'second': r2,
+            'third_tech': r3,
+            'final': fin,
+            'screening_to_1st': pct(r1, scr),
+            'first_to_2nd': pct(r2, r1),
+            'second_to_3rd': pct(r3, r2),
+            'third_to_final': pct(fin, r3),
+        })
+
     team_stats.sort(key=lambda x: (x['screening_to_1st'], x['interview_count']), reverse=True)
 
-    # Add rank
     for idx, stat in enumerate(team_stats):
         stat['rank'] = idx + 1
 
-    return team_stats, teams_map
+    value = (team_stats, teams_map)
+    cache.set(cache_key, value, timeout=300)
+    return value
 
 
 @analytics_bp.route('/experts')
@@ -342,20 +295,7 @@ def expert_analytics():
     filter_team = request.args.get('team', '') or None
     filter_expert = request.args.get('expert', '') or None
 
-    # Get active experts first
-    active_experts = get_active_experts(db)
-
-    # Get teams for filter dropdown
-    expert_team_map, teams_map = get_expert_team_map(db)
-    teams_list = sorted(list(teams_map.keys()))
-
-    # Get all active experts for filter dropdown (only those with manager="Harsh Patel" and active=true)
-    all_experts_from_tasks = db.taskBody.distinct('assignedTo', {
-        "status": "Completed",
-        "assignedTo": {"$type": "string", "$ne": ""},
-    })
-    # Filter to only show active experts
-    all_experts = sorted([e for e in all_experts_from_tasks if str(e).lower() in active_experts])
+    teams_list, all_experts, teams_map = get_analytics_filter_options(completed_only=True)
     # Get expert funnel data
     expert_stats, _ = get_expert_funnel_data(db, start_date, end_date, filter_team, filter_expert)
 
@@ -422,20 +362,7 @@ def team_analytics():
     filter_team = request.args.get('team', '') or None
     filter_expert = request.args.get('expert', '') or None
 
-    # Get active experts first
-    active_experts = get_active_experts(db)
-
-    # Get teams for filter dropdown
-    expert_team_map, teams_map = get_expert_team_map(db)
-    teams_list = sorted(list(teams_map.keys()))
-
-    # Get all active experts for filter dropdown (only those with manager="Harsh Patel" and active=true)
-    all_experts_from_tasks = db.taskBody.distinct('assignedTo', {
-        "status": "Completed",
-        "assignedTo": {"$type": "string", "$ne": ""},
-    })
-    # Filter to only show active experts
-    all_experts = sorted([e for e in all_experts_from_tasks if str(e).lower() in active_experts])
+    teams_list, all_experts, teams_map = get_analytics_filter_options(completed_only=True)
     # Get team funnel data (with filters applied for alignment)
     team_stats, _ = get_team_funnel_data(db, start_date, end_date, filter_team, filter_expert)
 
@@ -490,20 +417,7 @@ def funnel_analytics():
     filter_team = request.args.get('team', '') or None
     filter_expert = request.args.get('expert', '') or None
 
-    # Get active experts first
-    active_experts = get_active_experts(db)
-
-    # Get teams for filter dropdown
-    expert_team_map, teams_map = get_expert_team_map(db)
-    teams_list = sorted(list(teams_map.keys()))
-
-    # Get all active experts for filter dropdown (only those with manager="Harsh Patel" and active=true)
-    all_experts_from_tasks = db.taskBody.distinct('assignedTo', {
-        "status": "Completed",
-        "assignedTo": {"$type": "string", "$ne": ""},
-    })
-    # Filter to only show active experts
-    all_experts = sorted([e for e in all_experts_from_tasks if str(e).lower() in active_experts])
+    teams_list, all_experts, teams_map = get_analytics_filter_options(completed_only=True)
     # Get overall funnel data (with filters for alignment)
     expert_stats, _ = get_expert_funnel_data(db, start_date, end_date, filter_team, filter_expert)
 
@@ -560,190 +474,165 @@ def interview_stats():
     filter_team = request.args.get('team', '') or None
     filter_expert = request.args.get('expert', '') or None
 
-    # Get active experts first
     active_experts = get_active_experts(db)
+    _, teams_map = get_expert_team_map(db)
+    teams_list, all_experts, _ = get_analytics_filter_options(completed_only=False)
 
-    # Get expert-team mapping
-    expert_team_map, teams_map = get_expert_team_map(db)
-    teams_list = sorted(list(teams_map.keys()))
+    cache_key = analytics_cache_key("interview-stats-page", start_date, end_date, filter_team, filter_expert)
+    cached = current_app.cache.get(cache_key)
+    if cached is None:
+        date_match = {}
+        if start_date or end_date:
+            date_filter = {}
+            if start_date:
+                date_filter["$gte"] = f"{start_date}T00:00:00" if 'T' not in start_date else start_date
+            if end_date:
+                date_filter["$lte"] = f"{end_date}T23:59:59" if 'T' not in end_date else end_date
+            if date_filter:
+                date_match["receivedDateTime"] = date_filter
 
-    # Get all active experts for filter dropdown (only those with manager="Harsh Patel" and active=true)
-    all_experts_from_tasks = db.taskBody.distinct('assignedTo', {
-        "assignedTo": {"$type": "string", "$ne": ""},
-    })
-    # Filter to only show active experts
-    all_experts = sorted([e for e in all_experts_from_tasks if str(e).lower() in active_experts])
-
-    # Build date filter for pipeline
-    date_match = {}
-    if start_date or end_date:
-        date_filter = {}
-        if start_date:
-            if 'T' not in start_date:
-                start_date_val = f"{start_date}T00:00:00"
-            else:
-                start_date_val = start_date
-            date_filter["$gte"] = start_date_val
-        if end_date:
-            if 'T' not in end_date:
-                end_date_val = f"{end_date}T23:59:59"
-            else:
-                end_date_val = end_date
-            date_filter["$lte"] = end_date_val
-        if date_filter:
-            date_match["receivedDateTime"] = date_filter
-
-    # MongoDB aggregation pipeline for interview stats
-    pipeline = [
-        {
-            "$match": {
-                **date_match,
-                "actualRound": {"$nin": ["Screening", "On Demand or AI Interview"]},
-                "assignedTo": {"$type": "string", "$ne": ""}
+        pipeline = [
+            {
+                "$match": {
+                    **date_match,
+                    "actualRound": {"$nin": ["Screening", "On Demand or AI Interview"]},
+                    "assignedTo": {"$type": "string", "$ne": ""}
+                }
+            },
+            {
+                "$group": {
+                    "_id": "$assignedTo",
+                    "CompletedCount": {
+                        "$sum": {"$cond": [{"$eq": ["$status", "Completed"]}, 1, 0]}
+                    },
+                    "CancelledCount": {
+                        "$sum": {"$cond": [{"$eq": ["$status", "Cancelled"]}, 1, 0]}
+                    },
+                    "RescheduledCount": {
+                        "$sum": {"$cond": [{"$eq": ["$status", "Rescheduled"]}, 1, 0]}
+                    },
+                    "NotDoneCount": {
+                        "$sum": {"$cond": [{"$eq": ["$status", "Not Done"]}, 1, 0]}
+                    },
+                    "TotalInterviews": {"$sum": 1}
+                }
+            },
+            {
+                "$project": {
+                    "_id": 0,
+                    "Expert": "$_id",
+                    "CompletedCount": 1,
+                    "CancelledCount": 1,
+                    "RescheduledCount": 1,
+                    "NotDoneCount": 1,
+                    "TotalInterviews": 1
+                }
             }
-        },
-        {
-            "$group": {
-                "_id": "$assignedTo",
-                "CompletedCount": {
-                    "$sum": {"$cond": [{"$eq": ["$status", "Completed"]}, 1, 0]}
-                },
-                "CancelledCount": {
-                    "$sum": {"$cond": [{"$eq": ["$status", "Cancelled"]}, 1, 0]}
-                },
-                "RescheduledCount": {
-                    "$sum": {"$cond": [{"$eq": ["$status", "Rescheduled"]}, 1, 0]}
-                },
-                "NotDoneCount": {
-                    "$sum": {"$cond": [{"$eq": ["$status", "Not Done"]}, 1, 0]}
-                },
-                "TotalInterviews": {"$sum": 1}
-            }
-        },
-        {
-            "$project": {
-                "_id": 0,
-                "Expert": "$_id",
-                "CompletedCount": 1,
-                "CancelledCount": 1,
-                "RescheduledCount": 1,
-                "NotDoneCount": 1,
-                "TotalInterviews": 1
-            }
-        }
-    ]
+        ]
 
-    results = list(db.taskBody.aggregate(pipeline))
+        results = list(db.taskBody.aggregate(pipeline))
+        expert_stats_map = {r["Expert"]: r for r in results}
 
-    # Map: expert email -> their stats
-    expert_stats_map = {r["Expert"]: r for r in results}
+        team_data = []
+        expert_data = []
 
-    # Build team stats with members
-    team_data = []
-    expert_data = []
-
-    for team_name, members in teams_map.items():
-        # Filter by team
-        if filter_team and team_name != filter_team:
-            continue
-
-        # Filter by expert within team
-        effective_members = members
-        if filter_expert:
-            effective_members = [m for m in members if m == filter_expert]
-            if not effective_members:
+        for team_name, members in teams_map.items():
+            if filter_team and team_name != filter_team:
                 continue
 
-        # Compute team totals
-        team_completed = team_cancelled = team_rescheduled = team_notdone = team_total = 0
-        member_stats = []
+            effective_members = members
+            if filter_expert:
+                effective_members = [m for m in members if m == filter_expert]
+                if not effective_members:
+                    continue
 
-        for expert in effective_members:
-            # Skip inactive experts
-            if str(expert).lower() not in active_experts:
-                continue
+            team_completed = team_cancelled = team_rescheduled = team_notdone = team_total = 0
+            member_stats = []
 
-            data = expert_stats_map.get(expert)
-            if data:
-                c = data["CompletedCount"]
-                x = data["CancelledCount"]
-                r = data["RescheduledCount"]
-                nd = data["NotDoneCount"]
-                t = data["TotalInterviews"]
-            else:
-                c = x = r = nd = t = 0
+            for expert in effective_members:
+                if str(expert).lower() not in active_experts:
+                    continue
 
-            team_completed += c
-            team_cancelled += x
-            team_rescheduled += r
-            team_notdone += nd
-            team_total += t
+                data = expert_stats_map.get(expert)
+                if data:
+                    c = data["CompletedCount"]
+                    x = data["CancelledCount"]
+                    r = data["RescheduledCount"]
+                    nd = data["NotDoneCount"]
+                    t = data["TotalInterviews"]
+                else:
+                    c = x = r = nd = t = 0
 
-            member_stats.append({
-                'expert': expert,
-                'completed': c,
-                'cancelled': x,
-                'rescheduled': r,
-                'notdone': nd,
-                'total': t
-            })
+                team_completed += c
+                team_cancelled += x
+                team_rescheduled += r
+                team_notdone += nd
+                team_total += t
 
-            # Add to flat expert list
-            expert_data.append({
+                member_stats.append({
+                    'expert': expert,
+                    'completed': c,
+                    'cancelled': x,
+                    'rescheduled': r,
+                    'notdone': nd,
+                    'total': t
+                })
+
+                expert_data.append({
+                    'team': team_name,
+                    'expert': expert,
+                    'completed': c,
+                    'cancelled': x,
+                    'rescheduled': r,
+                    'notdone': nd,
+                    'total': t
+                })
+
+            team_data.append({
                 'team': team_name,
-                'expert': expert,
-                'completed': c,
-                'cancelled': x,
-                'rescheduled': r,
-                'notdone': nd,
-                'total': t
+                'member_count': len(members),
+                'active_members': len([m for m in member_stats if m['total'] > 0]),
+                'completed': team_completed,
+                'cancelled': team_cancelled,
+                'rescheduled': team_rescheduled,
+                'notdone': team_notdone,
+                'total': team_total,
+                'members': sorted(member_stats, key=lambda x: x['total'], reverse=True)
             })
 
-        team_data.append({
-            'team': team_name,
-            'member_count': len(members),
-            'active_members': len([m for m in member_stats if m['total'] > 0]),
-            'completed': team_completed,
-            'cancelled': team_cancelled,
-            'rescheduled': team_rescheduled,
-            'notdone': team_notdone,
-            'total': team_total,
-            'members': sorted(member_stats, key=lambda x: x['total'], reverse=True)
-        })
+        team_data.sort(key=lambda x: x['total'], reverse=True)
+        expert_data.sort(key=lambda x: x['total'], reverse=True)
 
-    # Sort teams by total interviews
-    team_data.sort(key=lambda x: x['total'], reverse=True)
-    expert_data.sort(key=lambda x: x['total'], reverse=True)
-
-    # Calculate overall totals
-    overall_completed = sum(t['completed'] for t in team_data)
-    overall_cancelled = sum(t['cancelled'] for t in team_data)
-    overall_rescheduled = sum(t['rescheduled'] for t in team_data)
-    overall_notdone = sum(t['notdone'] for t in team_data)
-    overall_total = sum(t['total'] for t in team_data)
+        cached = {
+            'team_data': team_data,
+            'expert_data': expert_data,
+            'overall_completed': sum(t['completed'] for t in team_data),
+            'overall_cancelled': sum(t['cancelled'] for t in team_data),
+            'overall_rescheduled': sum(t['rescheduled'] for t in team_data),
+            'overall_notdone': sum(t['notdone'] for t in team_data),
+            'overall_total': sum(t['total'] for t in team_data),
+        }
+        current_app.cache.set(cache_key, cached, timeout=300)
 
     return render_template(
         'interview_stats.html',
         teams=teams_list,
         experts=all_experts,
         teams_map=teams_map,
-        team_data=team_data,
-        expert_data=expert_data,
+        team_data=cached['team_data'],
+        expert_data=cached['expert_data'],
         selected_team=filter_team or '',
         selected_expert=filter_expert or '',
         start_date=start_date,
         end_date=end_date,
-        overall_completed=overall_completed,
-        overall_cancelled=overall_cancelled,
-        overall_rescheduled=overall_rescheduled,
-        overall_notdone=overall_notdone,
-        overall_total=overall_total
+        overall_completed=cached['overall_completed'],
+        overall_cancelled=cached['overall_cancelled'],
+        overall_rescheduled=cached['overall_rescheduled'],
+        overall_notdone=cached['overall_notdone'],
+        overall_total=cached['overall_total']
     )
 
-
-
-
-
+@lru_cache(maxsize=4096)
 def parse_interview_date_from_subject(subject):
     """
     Extract interview date from subject line.
@@ -786,41 +675,30 @@ def interview_records():
     filter_team = request.args.get('team', '') or None
     filter_expert = request.args.get('expert', '') or None
 
-    # Get active experts first
     active_experts = get_active_experts(db)
-
-    # Get expert-team mapping
     expert_team_map, teams_map = get_expert_team_map(db)
-    teams_list = sorted(list(teams_map.keys()))
+    teams_list, all_experts, _ = get_analytics_filter_options(completed_only=False)
 
-    # Get all active experts for filter dropdown (only those with manager="Harsh Patel" and active=true)
-    all_experts_from_tasks = db.taskBody.distinct('assignedTo', {
-        "assignedTo": {"$type": "string", "$ne": ""},
-    })
-    # Filter to only show active experts
-    all_experts = sorted([e for e in all_experts_from_tasks if str(e).lower() in active_experts])
-
-    # Build team data with interview records
-    team_data = []
-    all_records = []
-    overall_total = 0
-
-    for team_name, members in teams_map.items():
-        # Filter by team
-        if filter_team and team_name != filter_team:
-            continue
-
-        # Filter by expert within team
-        effective_members = members
-        if filter_expert:
-            effective_members = [m for m in members if m == filter_expert]
-            if not effective_members:
+    cache_key = analytics_cache_key("interview-records-page", start_date, end_date, filter_team, filter_expert)
+    cached = current_app.cache.get(cache_key)
+    if cached is None:
+        filtered_teams_map = {}
+        selected_members = []
+        for team_name, members in teams_map.items():
+            if filter_team and team_name != filter_team:
                 continue
 
-        # Query for completed interviews (excluding Screening and On Demand)
-        # Note: We fetch all and filter by subject date in Python
+            effective_members = members
+            if filter_expert:
+                effective_members = [m for m in members if m == filter_expert]
+                if not effective_members:
+                    continue
+
+            filtered_teams_map[team_name] = effective_members
+            selected_members.extend(effective_members)
+
         query = {
-            "assignedTo": {"$in": effective_members},
+            "assignedTo": {"$in": selected_members or ["__no_match__"]},
             "actualRound": {"$nin": ["Screening", "On demand", "On Demand or AI Interview"]},
             "status": "Completed",
         }
@@ -831,94 +709,105 @@ def interview_records():
             "receivedDateTime": 1,
             "actualRound": 1,
             "Candidate Name": 1,
-        }).sort("receivedDateTime", -1))
+            "_id": 0,
+        }).limit(20000))
 
-        # Group by expert, filtering by interview date from subject
-        expert_records = {}
+        expert_records = defaultdict(list)
+        all_records = []
+
         for r in records:
             expert = r.get("assignedTo")
-            # Skip inactive experts
             if str(expert).lower() not in active_experts:
+                continue
+
+            team_name = expert_team_map.get(str(expert).lower())
+            if not team_name or team_name not in filtered_teams_map:
                 continue
 
             subject = r.get('subject', '')
             interview_date = parse_interview_date_from_subject(subject)
 
-            # Apply date filter on interview date from subject
-            # If date filters are set and we can't parse interview date, skip the record
             if (start_date or end_date) and not interview_date:
                 continue
-            
             if interview_date:
                 if start_date and interview_date < start_date:
                     continue
                 if end_date and interview_date > end_date:
                     continue
 
-            # Use interview date from subject, fallback to receivedDateTime
             display_date = interview_date if interview_date else (
                 r.get('receivedDateTime', '')[:10] if r.get('receivedDateTime') else 'N/A'
             )
 
-            if expert not in expert_records:
-                expert_records[expert] = []
-            expert_records[expert].append({
+            sort_date = interview_date or r.get('receivedDateTime', '') or ''
+
+            expert_records[(team_name, expert)].append({
                 'subject': subject or 'N/A',
                 'candidate': r.get('Candidate Name', 'N/A'),
                 'round': r.get('actualRound', 'N/A'),
                 'date': display_date,
+                'sort_date': sort_date,
             })
 
-            # Add to all records for export
             all_records.append({
                 'team': team_name,
                 'expert': expert,
                 'subject': subject or 'N/A',
                 'candidate': r.get('Candidate Name', 'N/A'),
                 'round': r.get('actualRound', 'N/A'),
-                'date': interview_date or r.get('receivedDateTime', ''),
+                'date': sort_date,
             })
 
-        team_total = sum(len(recs) for recs in expert_records.values())
-        overall_total += team_total
+        team_data = []
+        overall_total = 0
+        for team_name, members in filtered_teams_map.items():
+            expert_list = []
+            team_total = 0
+            for expert in members:
+                recs = expert_records.get((team_name, expert), [])
+                recs.sort(key=lambda item: item['sort_date'], reverse=True)
+                for item in recs:
+                    item.pop('sort_date', None)
+                team_total += len(recs)
+                expert_list.append({
+                    'expert': expert,
+                    'count': len(recs),
+                    'records': recs
+                })
 
-        # Build expert data for this team
-        expert_list = []
-        for expert in effective_members:
-            recs = expert_records.get(expert, [])
-            expert_list.append({
-                'expert': expert,
-                'count': len(recs),
-                'records': recs
+            expert_list.sort(key=lambda x: x['count'], reverse=True)
+            overall_total += team_total
+            team_data.append({
+                'team': team_name,
+                'total': team_total,
+                'member_count': len(teams_map.get(team_name, [])),
+                'active_count': len([e for e in expert_list if e['count'] > 0]),
+                'experts': expert_list
             })
 
-        # Sort experts by count
-        expert_list.sort(key=lambda x: x['count'], reverse=True)
-
-        team_data.append({
-            'team': team_name,
-            'total': team_total,
-            'member_count': len(members),
-            'active_count': len([e for e in expert_list if e['count'] > 0]),
-            'experts': expert_list
-        })
-
-    # Sort teams by total
-    team_data.sort(key=lambda x: x['total'], reverse=True)
+        team_data.sort(key=lambda x: x['total'], reverse=True)
+        all_records.sort(key=lambda item: item['date'], reverse=True)
+        cached = {
+            'team_data': team_data,
+            'all_records': all_records,
+            'overall_total': overall_total,
+            'total_records': len(all_records),
+        }
+        current_app.cache.set(cache_key, cached, timeout=300)
 
     return render_template(
         'interview_records.html',
         teams=teams_list,
         experts=all_experts,
         teams_map=teams_map,
-        team_data=team_data,
-        all_records=all_records[:500],  # Limit for performance
+        team_data=cached['team_data'],
+        all_records=cached['all_records'][:500],
         selected_team=filter_team or '',
         selected_expert=filter_expert or '',
         start_date=start_date,
         end_date=end_date,
-        overall_total=overall_total,
-        total_records=len(all_records)
+        overall_total=cached['overall_total'],
+        total_records=cached['total_records']
     )
 
 
@@ -927,33 +816,15 @@ def export_center():
     db = get_db()
     start_date, end_date = get_date_filter_strings()
 
-    # Get active experts first
-    active_experts = get_active_experts(db)
-
-    # Get filter options for export
-    expert_team_map, teams_map = get_expert_team_map(db)
-    teams_list = sorted(list(teams_map.keys()))
-
-    # Get all active experts for filter dropdown (only those with manager="Harsh Patel" and active=true)
-    all_experts_from_tasks = db.taskBody.distinct('assignedTo', {
-        "status": "Completed",
-        "assignedTo": {"$type": "string", "$ne": ""},
-    })
-    # Filter to only show active experts
-    experts = sorted([e for e in all_experts_from_tasks if str(e).lower() in active_experts])
-    # Get technologies and statuses for filters (filter out None values)
-    technologies_raw = db.candidateDetails.distinct('Technology')
-    technologies = sorted([t for t in technologies_raw if t is not None and t != ''])
-
-    workflow_statuses_raw = db.candidateDetails.distinct('workflowStatus')
-    workflow_statuses = sorted([s for s in workflow_statuses_raw if s is not None and s != ''])
+    teams_list, experts, teams_map = get_analytics_filter_options(completed_only=True)
+    export_options = get_export_filter_options()
 
     return render_template(
         'export_center.html',
         teams=teams_list,
         experts=experts,
-        technologies=technologies,
-        workflow_statuses=workflow_statuses,
+        technologies=export_options['technologies'],
+        workflow_statuses=export_options['workflow_statuses'],
         teams_map=teams_map,
         start_date=start_date,
         end_date=end_date
