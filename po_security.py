@@ -17,7 +17,7 @@ LOCK_FIELD_LABELS = {
     "team_lead": "Team Lead Name",
 }
 PO_NAME_ALIASES = {
-    "Anusree Vasudevan": "Anushree Vasudevan",
+    "Anusree Vasudevan": "Anusree Vasudevan",
     "Prateek Navariya": "Prateek Narvariya",
     "Rujuwal Garag": "Rujuwal Garg",
 }

@@ -6,7 +6,7 @@ from flask import current_app, has_app_context
 from db import get_db, get_teams_db
 
 PO_NAME_ALIASES = {
-    "Anusree Vasudevan": "Anushree Vasudevan",
+    "Anusree Vasudevan": "Anusree Vasudevan",
     "Prateek Navariya": "Prateek Narvariya",
     "Rujuwal Garag": "Rujuwal Garg",
     "Varsa Shahu": "Varsha Sahu",
