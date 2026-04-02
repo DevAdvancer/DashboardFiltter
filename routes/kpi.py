@@ -10,6 +10,7 @@ from datetime import datetime
 from flask import Blueprint, current_app, jsonify, request, render_template
 from db import get_db
 from services.reference_data import get_kpi_round_titles, get_teams_reference
+from services.team_management import mongo_normalized_text, normalize_lookup_text
 
 kpi_bp = Blueprint('kpi', __name__)
 
@@ -109,7 +110,7 @@ def kpi_sidebar():
         end_date = today.strftime('%Y-%m-%d')
 
     filter_team = request.args.get('team', '')
-    filter_expert = request.args.get('expert', '')
+    filter_expert = normalize_lookup_text(request.args.get('expert', ''))
     filter_round = request.args.get('round', '')
     exclude_rounds = request.args.getlist('exclude_rounds')  # Get multiple exclude values
 
@@ -177,7 +178,7 @@ def api_kpi_sidebar():
         end_date = today.strftime('%Y-%m-%d')
 
     filter_team = request.args.get('team', '')
-    filter_expert = request.args.get('expert', '')
+    filter_expert = normalize_lookup_text(request.args.get('expert', ''))
     filter_round = request.args.get('round', '')
     exclude_rounds = request.args.getlist('exclude_rounds[]') if 'exclude_rounds[]' in request.args else request.args.getlist('exclude_rounds')
 
@@ -199,7 +200,7 @@ def api_matched_candidates():
     """API endpoint to get matched candidates for a specific expert."""
     db = get_db()
 
-    expert_email = request.args.get('expert', '').lower()
+    expert_email = normalize_lookup_text(request.args.get('expert', ''))
     start_date = request.args.get('start_date', '')
     end_date = request.args.get('end_date', '')
     filter_round = request.args.get('round', '')
@@ -258,13 +259,16 @@ def api_matched_candidates():
                 if 'on demand' in subject_lower or 'ondemand' in subject_lower or 'ai interview' in subject_lower or 'screening' in subject_lower:
                     continue
                 if candidate_name:
-                    if candidate_name not in candidates:
-                        candidates[candidate_name] = {
+                    candidate_key = normalize_lookup_text(candidate_name)
+                    if not candidate_key:
+                        continue
+                    if candidate_key not in candidates:
+                        candidates[candidate_key] = {
                             'name': candidate_name,
                             'subjects': []
                         }
                     if subject:
-                        candidates[candidate_name]['subjects'].append(subject)
+                        candidates[candidate_key]['subjects'].append(subject)
 
         # Get candidateDetails to check which are matched
         candidate_names = list(candidates.keys())
@@ -272,18 +276,49 @@ def api_matched_candidates():
         unmatched = []
 
         if candidate_names:
-            candidate_docs = list(db.candidateDetails.find(
-                {'Candidate Name': {'$in': candidate_names}},
-                {'Candidate Name': 1, 'Expert': 1, '_id': 0}
-            ))
-            candidate_expert_map = {doc['Candidate Name']: (doc.get('Expert') or '').lower() for doc in candidate_docs}
+            candidate_docs = list(
+                db.candidateDetails.aggregate(
+                    [
+                        {
+                            "$match": {
+                                "Candidate Name": {"$type": "string", "$ne": ""},
+                            }
+                        },
+                        {
+                            "$project": {
+                                "candidate_key": mongo_normalized_text("Candidate Name"),
+                                "expert_key": mongo_normalized_text("Expert"),
+                            }
+                        },
+                        {
+                            "$match": {
+                                "candidate_key": {"$in": candidate_names}
+                            }
+                        },
+                        {
+                            "$group": {
+                                "_id": "$candidate_key",
+                                "experts": {"$addToSet": "$expert_key"},
+                            }
+                        },
+                    ]
+                )
+            )
+            candidate_expert_map = {
+                doc["_id"]: {expert for expert in doc.get("experts", []) if expert}
+                for doc in candidate_docs
+            }
 
             for name, info in candidates.items():
                 if name in candidate_expert_map:
-                    if candidate_expert_map[name] == expert_email:
+                    if expert_email in candidate_expert_map[name]:
                         matched.append({**info, 'status': 'matched'})
                     else:
-                        unmatched.append({**info, 'status': 'unmatched', 'actual_expert': candidate_expert_map[name]})
+                        unmatched.append({
+                            **info,
+                            'status': 'unmatched',
+                            'actual_expert': ", ".join(sorted(candidate_expert_map[name])),
+                        })
                 else:
                     unmatched.append({**info, 'status': 'not_found'})
 
@@ -313,6 +348,7 @@ def calculate_kpi_data(db, start_date='', end_date='', filter_team=None, filter_
         dict with 'experts' list and 'summary' totals
     """
     exclude_rounds = exclude_rounds or []
+    filter_expert_key = normalize_lookup_text(filter_expert)
     cache_key = "kpi:data:{0}:{1}:{2}:{3}:{4}:{5}".format(
         start_date or "all",
         end_date or "all",
@@ -385,7 +421,7 @@ def calculate_kpi_data(db, start_date='', end_date='', filter_team=None, filter_
             continue
 
         # Apply expert filter
-        if filter_expert and first_expert != filter_expert.lower():
+        if filter_expert_key and first_expert != filter_expert_key:
             continue
 
         # Track interviews
@@ -395,10 +431,10 @@ def calculate_kpi_data(db, start_date='', end_date='', filter_team=None, filter_
 
         expert_interviews[first_expert].append({
             'id': str(doc.get('_id')),
-            'name': doc.get('Candidate Name', '')
+            'candidate_key': normalize_lookup_text(doc.get('Candidate Name', '')),
         })
 
-        candidate_name = doc.get('Candidate Name', '')
+        candidate_name = normalize_lookup_text(doc.get('Candidate Name', ''))
         if candidate_name:
             expert_candidates[first_expert].add(candidate_name)
 
@@ -408,17 +444,35 @@ def calculate_kpi_data(db, start_date='', end_date='', filter_team=None, filter_
         all_candidates.update(candidates)
 
     # Fetch candidateDetails for validation
-    candidate_expert_map = {}  # {candidate_name: expert_in_candidateDetails}
+    candidate_expert_map = {}  # {candidate_name: {experts_in_candidateDetails}}
     if all_candidates:
-        candidate_docs = list(db.candidateDetails.find(
-            {'Candidate Name': {'$in': list(all_candidates)}},
-            {'Candidate Name': 1, 'Expert': 1, '_id': 0}
-        ))
+        candidate_docs = list(
+            db.candidateDetails.aggregate(
+                [
+                    {
+                        "$match": {
+                            "Candidate Name": {"$type": "string", "$ne": ""},
+                        }
+                    },
+                    {
+                        "$project": {
+                            "candidate_key": mongo_normalized_text("Candidate Name"),
+                            "expert_key": mongo_normalized_text("Expert"),
+                        }
+                    },
+                    {
+                        "$match": {
+                            "candidate_key": {"$in": list(all_candidates)}
+                        }
+                    },
+                ]
+            )
+        )
         for doc in candidate_docs:
-            name = doc.get('Candidate Name', '')
-            expert = (doc.get('Expert') or '').lower()
+            name = doc.get('candidate_key', '')
+            expert = doc.get('expert_key', '')
             if name and expert:
-                candidate_expert_map[name] = expert
+                candidate_expert_map.setdefault(name, set()).add(expert)
 
     # Calculate KPIs per expert
     results = []
@@ -437,10 +491,14 @@ def calculate_kpi_data(db, start_date='', end_date='', filter_team=None, filter_
         for candidate in candidate_names:
             if candidate in candidate_expert_map:
                 validatable += 1
-                if candidate_expert_map[candidate] == expert_email:
+                if expert_email in candidate_expert_map[candidate]:
                     matches += 1
                     # Count interviews for this matched candidate
-                    matched_interviews += sum(1 for i in expert_interviews[expert_email] if i['name'] == candidate)
+                    matched_interviews += sum(
+                        1
+                        for i in expert_interviews[expert_email]
+                        if i['candidate_key'] == candidate
+                    )
 
         match_rate = (matches / validatable * 100) if validatable > 0 else 0
 

@@ -22,6 +22,27 @@ def clean_text(value):
     return " ".join(str(value).replace("\xa0", " ").split())
 
 
+def normalize_lookup_text(value):
+    return clean_text(value).casefold()
+
+
+def normalize_email_like(value):
+    cleaned = clean_text(value)
+    return cleaned.casefold() if "@" in cleaned else cleaned
+
+
+def mongo_normalized_text(field_name):
+    return {
+        "$toLower": {
+            "$trim": {
+                "input": {
+                    "$ifNull": [f"${field_name}", ""],
+                }
+            }
+        }
+    }
+
+
 def display_value(value, fallback="Unassigned"):
     cleaned = clean_text(value)
     return cleaned or fallback
@@ -38,7 +59,7 @@ def normalize_person_name(value):
 
 
 def _normalize_lookup_key(value):
-    cleaned = clean_text(value)
+    cleaned = normalize_lookup_text(value)
     if not cleaned:
         return ""
 

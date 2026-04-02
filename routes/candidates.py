@@ -21,6 +21,8 @@ from services.reference_data import get_candidate_lookup_names, get_teams_refere
 from services.team_management import (
     get_management_snapshot,
     get_team_management_directory,
+    mongo_normalized_text,
+    normalize_lookup_text,
     normalize_person_name,
 )
 
@@ -28,7 +30,7 @@ candidates_bp = Blueprint('candidates', __name__)
 
 PO_MATCH_THRESHOLD = 0.8
 PO_RECORDS_CACHE_KEY = "expert_activity_po_records_v1"
-EXPERT_ACTIVITY_CACHE_VERSION = "v2"
+EXPERT_ACTIVITY_CACHE_VERSION = "v3"
 
 
 def get_team_options():
@@ -117,9 +119,9 @@ def get_cached_po_records():
 
 def build_po_counts_by_expert(month_s, year_s, expert_names):
     normalized_experts = {
-        str(name).strip().lower(): normalize_expert_match_name(name)
+        normalize_lookup_text(name): normalize_expert_match_name(name)
         for name in expert_names
-        if str(name).strip()
+        if normalize_lookup_text(name)
     }
     if not normalized_experts:
         return {}
@@ -214,6 +216,7 @@ def candidate_lookup():
     """
     db = get_db()
     candidate_name = request.args.get('name', '').strip()
+    candidate_name_key = normalize_lookup_text(candidate_name)
 
     # Get list of all unique candidate names for autocomplete/dropdown - OPTIMIZED with limit
     all_candidates = get_candidate_lookup_names(limit=500)
@@ -221,8 +224,8 @@ def candidate_lookup():
     candidate_data = None
     interview_records = []
 
-    if candidate_name:
-        cache_key = f"candidate-lookup:summary:{candidate_name.lower()}"
+    if candidate_name_key:
+        cache_key = f"candidate-lookup:summary:{candidate_name_key}"
         cache = getattr(current_app, "cache", None)
         cached = cache.get(cache_key) if cache else None
 
@@ -230,7 +233,12 @@ def candidate_lookup():
             pipeline = [
                 {
                     "$match": {
-                        "Candidate Name": candidate_name
+                        "$expr": {
+                            "$eq": [
+                                mongo_normalized_text("Candidate Name"),
+                                candidate_name_key,
+                            ]
+                        }
                     }
                 },
                 {
@@ -360,7 +368,10 @@ def fetch_expert_activity_data(month_s, year_s, status_f, team_f=None, expert_f=
             experts = []
             for expert in team["experts"]:
                 expert_copy = dict(expert)
-                expert_copy["po_count"] = po_counts_by_expert.get(expert_copy["expert"].lower(), 0)
+                expert_copy["po_count"] = po_counts_by_expert.get(
+                    normalize_lookup_text(expert_copy["expert"]),
+                    0,
+                )
                 experts.append(expert_copy)
             team_copy = dict(team)
             team_copy["experts"] = experts
@@ -382,7 +393,7 @@ def fetch_expert_activity_data(month_s, year_s, status_f, team_f=None, expert_f=
     expert_to_team = {}
     for team_name, members in teams_map.items():
         for member in members:
-            expert_to_team[str(member).strip().lower()] = team_name
+            expert_to_team[normalize_lookup_text(member)] = team_name
 
     displayed_experts = []
     for members in teams_map_filtered.values():
@@ -414,10 +425,19 @@ def fetch_expert_activity_data(month_s, year_s, status_f, team_f=None, expert_f=
             if nor_conditions:
                  match_query["$nor"] = nor_conditions
 
+    expert_patterns = [
+        {"Expert": {"$regex": f"^{re.escape(str(expert).strip())}$", "$options": "i"}}
+        for expert in displayed_experts
+        if str(expert).strip()
+    ]
     candidate_query = {
         "Candidate Name": {"$type": "string", "$ne": ""},
-        "Expert": {"$in": displayed_experts or ["__no_match__"]},
     }
+    if expert_patterns:
+        candidate_query["$or"] = expert_patterns
+    else:
+        candidate_query["Expert"] = "__no_match__"
+
     candidates = list(db.candidateDetails.find(
         candidate_query,
         {
@@ -430,8 +450,11 @@ def fetch_expert_activity_data(month_s, year_s, status_f, team_f=None, expert_f=
             "_id": 0,
         }
     ))
-    candidate_names = [cand.get("Candidate Name") for cand in candidates if cand.get("Candidate Name")]
-    match_query["Candidate Name"] = {"$in": candidate_names or ["__no_match__"]}
+    candidate_name_keys = {
+        normalize_lookup_text(cand.get("Candidate Name"))
+        for cand in candidates
+        if normalize_lookup_text(cand.get("Candidate Name"))
+    }
 
     # Query taskBody for interview details
     interview_pipeline = [
@@ -439,14 +462,28 @@ def fetch_expert_activity_data(month_s, year_s, status_f, team_f=None, expert_f=
             "$match": match_query
         },
         {
+            "$project": {
+                "CandidateKey": mongo_normalized_text("Candidate Name"),
+                "Subject": "$subject",
+                "ActualRound": "$actualRound",
+                "Status": "$status",
+                "Date": "$receivedDateTime",
+            }
+        },
+        {
+            "$match": {
+                "CandidateKey": {"$in": list(candidate_name_keys) or ["__no_match__"]}
+            }
+        },
+        {
             "$group": {
-                "_id": "$Candidate Name",
+                "_id": "$CandidateKey",
                 "InterviewCount": {"$sum": 1},
                 "InterviewDetails": {"$push": {
-                    "Subject": "$subject",
-                    "ActualRound": "$actualRound",
-                    "Status": "$status",
-                    "Date": "$receivedDateTime"
+                    "Subject": "$Subject",
+                    "ActualRound": "$ActualRound",
+                    "Status": "$Status",
+                    "Date": "$Date"
                 }}
             }
         }
@@ -492,9 +529,10 @@ def fetch_expert_activity_data(month_s, year_s, status_f, team_f=None, expert_f=
         # Fallback to 'workflowStatus' if 'status' is missing
         raw_status = cand.get("status") or cand.get("workflowStatus")
         workflow_status = (raw_status or "").strip()
-        expert_lower = (expert or "").strip().lower()
+        expert_lower = normalize_lookup_text(expert)
+        candidate_name_key = normalize_lookup_text(cand_name)
 
-        interview_info = candidate_interview_map.get(cand_name, {'count': 0, 'details': []})
+        interview_info = candidate_interview_map.get(candidate_name_key, {'count': 0, 'details': []})
         interview_count = interview_info['count']
         details = interview_info['details']
 
@@ -556,7 +594,7 @@ def fetch_expert_activity_data(month_s, year_s, status_f, team_f=None, expert_f=
     per_expert.sort(key=lambda x: (x["ActiveCandidates"], x["TotalCandidates"]), reverse=True)
 
     # Map expert summaries (already created above)
-    expert_summary = {(e.get("_id") or "").lower(): e for e in per_expert}
+    expert_summary = {normalize_lookup_text(e.get("_id")): e for e in per_expert}
 
     po_counts_by_expert = build_po_counts_by_expert(month_s, year_s, displayed_experts)
 
@@ -574,7 +612,7 @@ def fetch_expert_activity_data(month_s, year_s, status_f, team_f=None, expert_f=
             if expert_f and expert_clean != expert_f:
                 continue
 
-            key = expert_clean.lower()
+            key = normalize_lookup_text(expert_clean)
             e = expert_summary.get(key, {})
             active_cnt = e.get("ActiveCandidates", 0)
             inactive_cnt = e.get("InactiveCandidates", 0)

@@ -1,6 +1,7 @@
 from flask import current_app, has_app_context
 
 from db import get_db, get_teams_db
+from services.team_management import clean_text, normalize_lookup_text
 
 CACHE_VERSION = "v1"
 
@@ -30,9 +31,15 @@ def get_teams_reference():
         teams_db = get_teams_db()
         teams_cursor = list(teams_db.teams.find({}, {"name": 1, "members": 1, "_id": 0}))
         teams_map = {
-            team["name"]: [str(member).strip() for member in team.get("members", []) if str(member).strip()]
+            clean_text(team["name"]): sorted(
+                {
+                    normalize_lookup_text(member)
+                    for member in team.get("members", [])
+                    if normalize_lookup_text(member)
+                }
+            )
             for team in teams_cursor
-            if team.get("name")
+            if clean_text(team.get("name"))
         }
 
         expert_to_team = {}
@@ -79,7 +86,11 @@ def get_active_task_experts(completed_only=True, manager_name="Harsh Patel"):
 
         task_experts = db.taskBody.distinct("assignedTo", query)
         return sorted(
-            [expert for expert in task_experts if str(expert).strip().lower() in active_experts]
+            {
+                normalize_lookup_text(expert)
+                for expert in task_experts
+                if normalize_lookup_text(expert) in active_experts
+            }
         )
 
     return _cache_result(
@@ -92,12 +103,17 @@ def get_active_task_experts(completed_only=True, manager_name="Harsh Patel"):
 def get_candidate_lookup_names(limit=500):
     def build():
         db = get_db()
-        return sorted(
-            db.taskBody.distinct(
-                "Candidate Name",
-                {"Candidate Name": {"$type": "string", "$ne": ""}},
-            )
-        )[:limit]
+        names_by_key = {}
+        for value in db.taskBody.distinct(
+            "Candidate Name",
+            {"Candidate Name": {"$type": "string", "$ne": ""}},
+        ):
+            name = clean_text(value)
+            name_key = normalize_lookup_text(name)
+            if name and name_key and name_key not in names_by_key:
+                names_by_key[name_key] = name
+
+        return sorted(names_by_key.values())[:limit]
 
     return _cache_result(_cache_key("candidate-lookup", limit), 300, build)
 

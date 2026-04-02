@@ -8,6 +8,7 @@ from datetime import datetime
 
 import pytz
 from supabase import create_client
+from services.team_management import normalize_email_like
 
 LOGGER = logging.getLogger(__name__)
 
@@ -160,13 +161,17 @@ class POConsumerService:
         body = payload.get("body", "")
         received_raw = payload.get("receivedDateTime", "")
         extracted = parse_body(body)
+        extracted["email"] = normalize_email_like(extracted.get("email"))
+        extracted["interview_support_by"] = normalize_email_like(extracted.get("interview_support_by"))
+        extracted["team_lead"] = normalize_email_like(extracted.get("team_lead"))
+        extracted["manager"] = normalize_email_like(extracted.get("manager"))
 
         return {
-            "sender": payload.get("sender", ""),
+            "sender": normalize_email_like(payload.get("sender", "")),
             "subject": payload.get("subject", ""),
             "body": body,
-            "to_field": payload.get("to"),
-            "cc_field": payload.get("cc"),
+            "to_field": normalize_email_like(payload.get("to")),
+            "cc_field": normalize_email_like(payload.get("cc")),
             "received_at": convert_to_est(received_raw) or fallback_kafka_time(message),
             **extracted,
             "raw_json": payload,

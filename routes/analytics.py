@@ -19,6 +19,7 @@ from services.reference_data import (
     get_export_filter_options,
     get_teams_reference,
 )
+from services.team_management import normalize_lookup_text
 
 analytics_bp = Blueprint('analytics', __name__)
 
@@ -225,6 +226,8 @@ def get_expert_funnel_data(db, start_date='', end_date='', filter_team=None, fil
     if cached is not None:
         return cached
 
+    filter_expert_key = normalize_lookup_text(filter_expert)
+
     # Get active experts first
     active_experts = get_active_experts(db)
 
@@ -257,7 +260,7 @@ def get_expert_funnel_data(db, start_date='', end_date='', filter_team=None, fil
 
     for row in round_rows:
         row_id = row.get("_id") or {}
-        expert = row_id.get("expert")
+        expert = normalize_lookup_text(row_id.get("expert"))
         if not expert:
             continue
 
@@ -270,13 +273,13 @@ def get_expert_funnel_data(db, start_date='', end_date='', filter_team=None, fil
     # Build expert stats with filtration
     expert_stats = []
     for expert, stages in expert_stage_counts.items():
-        if str(expert).lower() not in active_experts:
+        if expert not in active_experts:
             continue
 
-        team_name = expert_team_map.get(str(expert).lower(), "Unmapped")
+        team_name = expert_team_map.get(expert, "Unmapped")
         if filter_team is not None and team_name != filter_team:
             continue
-        if filter_expert is not None and expert != filter_expert:
+        if filter_expert_key and expert != filter_expert_key:
             continue
 
         scr = stages.get("Screening", 0)
@@ -397,14 +400,14 @@ def expert_analytics():
 
     # Get filter parameters
     filter_team = request.args.get('team', '') or None
-    filter_expert = request.args.get('expert', '') or None
+    filter_expert = normalize_lookup_text(request.args.get('expert', '')) or None
 
     teams_list, all_experts, teams_map = get_analytics_filter_options(completed_only=True)
     # Get expert funnel data
     expert_stats, _ = get_expert_funnel_data(db, start_date, end_date, filter_team, filter_expert)
 
     # Get selected expert detail
-    selected_expert = request.args.get('view_expert', '')
+    selected_expert = normalize_lookup_text(request.args.get('view_expert', ''))
     expert_detail = None
     expert_tasks = []
 
@@ -428,7 +431,7 @@ def expert_analytics():
             if cached_detail is None:
                 # Get recent tasks for this expert
                 task_query = build_task_query(start_date, end_date)
-                task_query['assignedTo'] = selected_expert
+                task_query['assignedTo'] = {"$regex": f"^{re.escape(selected_expert)}$", "$options": "i"}
 
                 expert_tasks = list(db.taskBody.find(task_query).sort('receivedDateTime', -1).limit(25))
 
@@ -475,7 +478,7 @@ def team_analytics():
 
     # Get filter parameters
     filter_team = request.args.get('team', '') or None
-    filter_expert = request.args.get('expert', '') or None
+    filter_expert = normalize_lookup_text(request.args.get('expert', '')) or None
 
     teams_list, all_experts, teams_map = get_analytics_filter_options(completed_only=True)
     # Get team funnel data (with filters applied for alignment)
@@ -539,7 +542,7 @@ def interview_stats():
 
     # Get filter parameters
     filter_team = request.args.get('team', '') or None
-    filter_expert = request.args.get('expert', '') or None
+    filter_expert = normalize_lookup_text(request.args.get('expert', '')) or None
 
     active_experts = get_active_experts(db)
     _, teams_map = get_expert_team_map(db)
@@ -606,7 +609,11 @@ def interview_stats():
         ]
 
         results = list(db.taskBody.aggregate(pipeline))
-        expert_stats_map = {r["Expert"]: r for r in results}
+        expert_stats_map = {
+            normalize_lookup_text(r["Expert"]): {**r, "Expert": normalize_lookup_text(r["Expert"])}
+            for r in results
+            if normalize_lookup_text(r.get("Expert"))
+        }
         po_team_counts = po_counts["team_counts"]
         po_expert_counts = po_counts["expert_counts"]
 
@@ -627,10 +634,11 @@ def interview_stats():
             member_stats = []
 
             for expert in effective_members:
-                if str(expert).lower() not in active_experts:
+                expert_key = normalize_lookup_text(expert)
+                if expert_key not in active_experts:
                     continue
 
-                data = expert_stats_map.get(expert)
+                data = expert_stats_map.get(expert_key)
                 if data:
                     c = data["CompletedCount"]
                     x = data["CancelledCount"]
@@ -647,24 +655,24 @@ def interview_stats():
                 team_total += t
 
                 member_stats.append({
-                    'expert': expert,
+                    'expert': expert_key,
                     'completed': c,
                     'cancelled': x,
                     'rescheduled': r,
                     'notdone': nd,
                     'total': t,
-                    'po_count': po_expert_counts.get(str(expert).lower(), 0),
+                    'po_count': po_expert_counts.get(expert_key, 0),
                 })
 
                 expert_data.append({
                     'team': team_name,
-                    'expert': expert,
+                    'expert': expert_key,
                     'completed': c,
                     'cancelled': x,
                     'rescheduled': r,
                     'notdone': nd,
                     'total': t,
-                    'po_count': po_expert_counts.get(str(expert).lower(), 0),
+                    'po_count': po_expert_counts.get(expert_key, 0),
                 })
 
             team_data.append({
@@ -755,7 +763,7 @@ def interview_records():
 
     # Get filter parameters
     filter_team = request.args.get('team', '') or None
-    filter_expert = request.args.get('expert', '') or None
+    filter_expert = normalize_lookup_text(request.args.get('expert', '')) or None
 
     active_experts = get_active_experts(db)
     expert_team_map, teams_map = get_expert_team_map(db)
@@ -779,11 +787,19 @@ def interview_records():
             filtered_teams_map[team_name] = effective_members
             selected_members.extend(effective_members)
 
+        expert_patterns = [
+            {"assignedTo": {"$regex": f"^{re.escape(member)}$", "$options": "i"}}
+            for member in selected_members
+            if member
+        ]
         query = {
-            "assignedTo": {"$in": selected_members or ["__no_match__"]},
             "actualRound": {"$nin": ["Screening", "On demand", "On Demand or AI Interview"]},
             "status": "Completed",
         }
+        if expert_patterns:
+            query["$or"] = expert_patterns
+        else:
+            query["assignedTo"] = "__no_match__"
 
         records = list(db.taskBody.find(query, {
             "assignedTo": 1,
@@ -799,10 +815,11 @@ def interview_records():
 
         for r in records:
             expert = r.get("assignedTo")
-            if str(expert).lower() not in active_experts:
+            expert_key = normalize_lookup_text(expert)
+            if expert_key not in active_experts:
                 continue
 
-            team_name = expert_team_map.get(str(expert).lower())
+            team_name = expert_team_map.get(expert_key)
             if not team_name or team_name not in filtered_teams_map:
                 continue
 
@@ -823,7 +840,7 @@ def interview_records():
 
             sort_date = interview_date or r.get('receivedDateTime', '') or ''
 
-            expert_records[(team_name, expert)].append({
+            expert_records[(team_name, expert_key)].append({
                 'subject': subject or 'N/A',
                 'candidate': r.get('Candidate Name', 'N/A'),
                 'round': r.get('actualRound', 'N/A'),
@@ -833,7 +850,7 @@ def interview_records():
 
             all_records.append({
                 'team': team_name,
-                'expert': expert,
+                'expert': expert_key,
                 'subject': subject or 'N/A',
                 'candidate': r.get('Candidate Name', 'N/A'),
                 'round': r.get('actualRound', 'N/A'),
@@ -922,7 +939,7 @@ def export_preview():
     end_date = request.form.get('end_date', '')
     export_type = request.form.get('export_type', 'interview_records')
     filter_team = request.form.get('team', '') or None
-    filter_expert = request.form.get('expert', '') or None
+    filter_expert = normalize_lookup_text(request.form.get('expert', '')) or None
 
     # Get active experts
     active_experts = get_active_experts(db)
@@ -942,16 +959,17 @@ def export_preview():
 
         for r in records:
             expert = r.get('assignedTo', '')
-            if str(expert).lower() not in active_experts:
+            expert_key = normalize_lookup_text(expert)
+            if expert_key not in active_experts:
                 continue
-            team = expert_team_map.get(str(expert).lower(), "Unmapped")
+            team = expert_team_map.get(expert_key, "Unmapped")
             if filter_team and team != filter_team:
                 continue
-            if filter_expert and expert != filter_expert:
+            if filter_expert and expert_key != filter_expert:
                 continue
             preview_data.append({
                 'Team': team,
-                'Expert': expert.split('@')[0] if '@' in expert else expert,
+                'Expert': expert_key.split('@')[0] if '@' in expert_key else expert_key,
                 'Subject': (r.get('subject', '') or '')[:50] + '...' if len(r.get('subject', '') or '') > 50 else r.get('subject', ''),
                 'Round': r.get('actualRound', ''),
                 'Date': (r.get('receivedDateTime', '') or '')[:10],
@@ -1024,16 +1042,17 @@ def export_preview():
 
         for r in results:
             expert = r['_id']
-            if str(expert).lower() not in active_experts:
+            expert_key = normalize_lookup_text(expert)
+            if expert_key not in active_experts:
                 continue
-            team = expert_team_map.get(str(expert).lower(), "Unmapped")
+            team = expert_team_map.get(expert_key, "Unmapped")
             if filter_team and team != filter_team:
                 continue
-            if filter_expert and expert != filter_expert:
+            if filter_expert and expert_key != filter_expert:
                 continue
             preview_data.append({
                 'Team': team,
-                'Expert': expert.split('@')[0] if '@' in expert else expert,
+                'Expert': expert_key.split('@')[0] if '@' in expert_key else expert_key,
                 'Completed': r.get('Completed', 0),
                 'Cancelled': r.get('Cancelled', 0),
                 'Rescheduled': r.get('Rescheduled', 0),
@@ -1063,7 +1082,7 @@ def export_download():
     export_type = request.form.get('export_type', 'experts')
     export_format = request.form.get('format', 'excel')
     filter_team = request.form.get('team', '') or None
-    filter_expert = request.form.get('expert', '') or None
+    filter_expert = normalize_lookup_text(request.form.get('expert', '')) or None
 
     # Get active experts
     active_experts = get_active_experts(db)
@@ -1122,23 +1141,24 @@ def export_interview_records_excel(db, start_date, end_date, filter_team, filter
     excel_rows = []
     for r in records:
         expert = r.get('assignedTo', '')
+        expert_key = normalize_lookup_text(expert)
 
         # Skip inactive experts
-        if str(expert).lower() not in active_experts:
+        if expert_key not in active_experts:
             continue
 
         # Get team
-        team = expert_team_map.get(str(expert).lower(), "Unmapped")
+        team = expert_team_map.get(expert_key, "Unmapped")
 
         # Apply filters
         if filter_team and team != filter_team:
             continue
-        if filter_expert and expert != filter_expert:
+        if filter_expert and expert_key != filter_expert:
             continue
 
         excel_rows.append({
             'Team': team,
-            'Expert': expert,
+            'Expert': expert_key,
             'Subject': r.get('subject', ''),
             'Candidate': r.get('Candidate Name', ''),
             'Round': r.get('actualRound', ''),
@@ -1211,21 +1231,22 @@ def export_team_summary_excel(db, start_date, end_date, filter_team, filter_expe
     expert_stats = {}
     for r in results:
         expert = r['_id']['expert']
+        expert_key = normalize_lookup_text(expert)
         status = r['_id']['status']
         count = r['count']
 
         # Skip inactive experts
-        if str(expert).lower() not in active_experts:
+        if expert_key not in active_experts:
             continue
 
-        if expert not in expert_stats:
-            expert_stats[expert] = {'Completed': 0, 'Cancelled': 0, 'Rescheduled': 0}
+        if expert_key not in expert_stats:
+            expert_stats[expert_key] = {'Completed': 0, 'Cancelled': 0, 'Rescheduled': 0}
 
-        expert_stats[expert][status] = count
+        expert_stats[expert_key][status] = count
 
     excel_rows = []
     for expert, stats in expert_stats.items():
-        team = expert_team_map.get(str(expert).lower(), "Unmapped")
+        team = expert_team_map.get(expert, "Unmapped")
 
         # Apply filters
         if filter_team and team != filter_team:
@@ -1480,16 +1501,17 @@ def export_interview_stats_excel(db, start_date, end_date, filter_team, filter_e
     excel_rows = []
     for r in results:
         expert = r['_id']
-        if str(expert).lower() not in active_experts:
+        expert_key = normalize_lookup_text(expert)
+        if expert_key not in active_experts:
             continue
-        team = expert_team_map.get(str(expert).lower(), "Unmapped")
+        team = expert_team_map.get(expert_key, "Unmapped")
         if filter_team and team != filter_team:
             continue
-        if filter_expert and expert != filter_expert:
+        if filter_expert and expert_key != filter_expert:
             continue
         excel_rows.append({
             'Team': team,
-            'Expert': expert,
+            'Expert': expert_key,
             'Completed': r.get('Completed', 0),
             'Cancelled': r.get('Cancelled', 0),
             'Rescheduled': r.get('Rescheduled', 0),
