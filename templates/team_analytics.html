@@ -12,7 +12,7 @@
             <h2 class="report-title">{{ hero_team.team ~ ' Team Funnel' if team_detail else 'Team Analytics' }}</h2>
             <p class="report-description">
                 {% if team_detail %}
-                Explore the selected team's funnel strength, member contribution, and where stage progression is strongest or dropping off.
+                Explore the selected team's funnel strength, member contribution, and where stage progression is strongest or dropping off across loop and final rounds.
                 {% else %}
                 Compare team throughput and stage-by-stage conversion so leaders can quickly see where capacity and performance are concentrated.
                 {% endif %}
@@ -311,7 +311,21 @@
                     <span class="stage-label">3rd/Technical</span>
                 </div>
                 <div class="pipeline-arrow">
-                    <span class="conversion-rate">{{ team_detail.third_to_final }}%</span>
+                    <span class="conversion-rate">{{ team_detail.third_to_loop }}%</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                </div>
+                <div class="pipeline-stage">
+                    {% set hl = (team_detail.loop_round / team_detail.screening * 100) if team_detail.screening > 0 else 8
+                    %}
+                    <div class="stage-bar loop" style="height: {{ [hl, 20]|max }}%">
+                        <span class="stage-count">{{ team_detail.loop_round }}</span>
+                    </div>
+                    <span class="stage-label">Loop Round</span>
+                </div>
+                <div class="pipeline-arrow">
+                    <span class="conversion-rate">{{ team_detail.loop_to_final }}%</span>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M5 12h14M12 5l7 7-7 7" />
                     </svg>
@@ -349,11 +363,13 @@
                             <th>1st</th>
                             <th>2nd</th>
                             <th>3rd/Tech</th>
+                            <th>Loop Round</th>
                             <th>Final</th>
                             <th>Scr to 1st</th>
                             <th>1st to 2nd</th>
                             <th>2nd to 3rd</th>
-                            <th>3rd to Fin</th>
+                            <th>3rd to Loop</th>
+                            <th>Loop to Fin</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -375,6 +391,7 @@
                             <td class="stage-cell first">{{ stat.first }}</td>
                             <td class="stage-cell second">{{ stat.second }}</td>
                             <td class="stage-cell third">{{ stat.third_tech }}</td>
+                            <td class="stage-cell loop">{{ stat.loop_round }}</td>
                             <td class="stage-cell final">{{ stat.final }}</td>
                             <td class="conversion-cell {% if stat.screening_to_1st >= 50 %}good{% elif stat.screening_to_1st >= 25 %}medium{% else %}low{% endif %}"
                                 title="Actual: {{ stat.screening_to_1st }}%">
@@ -391,9 +408,14 @@
                                 {{ [stat.second_to_3rd, 100]|min }}%{% if stat.second_to_3rd > 100 %}<sup>*</sup>{%
                                 endif %}
                             </td>
-                            <td class="conversion-cell {% if stat.third_to_final >= 50 %}good{% elif stat.third_to_final >= 25 %}medium{% else %}low{% endif %}"
-                                title="Actual: {{ stat.third_to_final }}%">
-                                {{ [stat.third_to_final, 100]|min }}%{% if stat.third_to_final > 100 %}<sup>*</sup>{%
+                            <td class="conversion-cell {% if stat.third_to_loop >= 50 %}good{% elif stat.third_to_loop >= 25 %}medium{% else %}low{% endif %}"
+                                title="Actual: {{ stat.third_to_loop }}%">
+                                {{ [stat.third_to_loop, 100]|min }}%{% if stat.third_to_loop > 100 %}<sup>*</sup>{%
+                                endif %}
+                            </td>
+                            <td class="conversion-cell {% if stat.loop_to_final >= 50 %}good{% elif stat.loop_to_final >= 25 %}medium{% else %}low{% endif %}"
+                                title="Actual: {{ stat.loop_to_final }}%">
+                                {{ [stat.loop_to_final, 100]|min }}%{% if stat.loop_to_final > 100 %}<sup>*</sup>{%
                                 endif %}
                             </td>
                         </tr>
@@ -444,11 +466,13 @@
                         <th>1st</th>
                         <th>2nd</th>
                         <th>3rd/Tech</th>
+                        <th>Loop Round</th>
                         <th>Final</th>
                         <th>Scr to 1st</th>
                         <th>1st to 2nd</th>
                         <th>2nd to 3rd</th>
-                        <th>3rd to Fin</th>
+                        <th>3rd to Loop</th>
+                        <th>Loop to Fin</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -479,6 +503,7 @@
                         <td class="stage-cell first">{{ stat.first }}</td>
                         <td class="stage-cell second">{{ stat.second }}</td>
                         <td class="stage-cell third">{{ stat.third_tech }}</td>
+                        <td class="stage-cell loop">{{ stat.loop_round }}</td>
                         <td class="stage-cell final">{{ stat.final }}</td>
                         <td class="conversion-cell {% if stat.screening_to_1st >= 50 %}good{% elif stat.screening_to_1st >= 25 %}medium{% else %}low{% endif %}"
                             title="Actual: {{ stat.screening_to_1st }}%">
@@ -493,9 +518,14 @@
                             title="Actual: {{ stat.second_to_3rd }}%">
                             {{ [stat.second_to_3rd, 100]|min }}%{% if stat.second_to_3rd > 100 %}<sup>*</sup>{% endif %}
                         </td>
-                        <td class="conversion-cell {% if stat.third_to_final >= 50 %}good{% elif stat.third_to_final >= 25 %}medium{% else %}low{% endif %}"
-                            title="Actual: {{ stat.third_to_final }}%">
-                            {{ [stat.third_to_final, 100]|min }}%{% if stat.third_to_final > 100 %}<sup>*</sup>{% endif
+                        <td class="conversion-cell {% if stat.third_to_loop >= 50 %}good{% elif stat.third_to_loop >= 25 %}medium{% else %}low{% endif %}"
+                            title="Actual: {{ stat.third_to_loop }}%">
+                            {{ [stat.third_to_loop, 100]|min }}%{% if stat.third_to_loop > 100 %}<sup>*</sup>{% endif
+                            %}
+                        </td>
+                        <td class="conversion-cell {% if stat.loop_to_final >= 50 %}good{% elif stat.loop_to_final >= 25 %}medium{% else %}low{% endif %}"
+                            title="Actual: {{ stat.loop_to_final }}%">
+                            {{ [stat.loop_to_final, 100]|min }}%{% if stat.loop_to_final > 100 %}<sup>*</sup>{% endif
                             %}
                         </td>
                         <td>
@@ -612,6 +642,7 @@
                 { label: '1st Round', data: memberStats.map(m => m.first), backgroundColor: '#8b5cf6', borderRadius: 4 },
                 { label: '2nd Round', data: memberStats.map(m => m.second), backgroundColor: '#f97316', borderRadius: 4 },
                 { label: '3rd/Technical', data: memberStats.map(m => m.third_tech), backgroundColor: '#14b8a6', borderRadius: 4 },
+                { label: 'Loop Round', data: memberStats.map(m => m.loop_round), backgroundColor: '#ec4899', borderRadius: 4 },
                 { label: 'Final', data: memberStats.map(m => m.final), backgroundColor: '#22c55e', borderRadius: 4 }
             ]
         },
@@ -641,6 +672,7 @@
                 { label: '1st Round', data: teamStats.map(t => t.first), backgroundColor: '#8b5cf6', borderRadius: 4 },
                 { label: '2nd Round', data: teamStats.map(t => t.second), backgroundColor: '#f97316', borderRadius: 4 },
                 { label: '3rd/Technical', data: teamStats.map(t => t.third_tech), backgroundColor: '#14b8a6', borderRadius: 4 },
+                { label: 'Loop Round', data: teamStats.map(t => t.loop_round), backgroundColor: '#ec4899', borderRadius: 4 },
                 { label: 'Final', data: teamStats.map(t => t.final), backgroundColor: '#22c55e', borderRadius: 4 }
             ]
         },

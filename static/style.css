@@ -1454,6 +1454,11 @@ select option {
     box-shadow: 0 4px 15px rgba(20, 184, 166, 0.3);
 }
 
+.stage-bar.loop {
+    background: linear-gradient(180deg, #ec4899, #db2777);
+    box-shadow: 0 4px 15px rgba(236, 72, 153, 0.3);
+}
+
 .stage-bar.final {
     background: linear-gradient(180deg, #10b981, #059669);
     box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
@@ -1532,6 +1537,7 @@ select option {
 .stage-cell.first { color: var(--purple); }
 .stage-cell.second { color: var(--orange); }
 .stage-cell.third { color: var(--teal); }
+.stage-cell.loop { color: var(--pink); }
 .stage-cell.final { color: var(--green); }
 
 .conversion-cell {
@@ -2881,6 +2887,11 @@ select option {
 .funnel-bar-large.third {
     background: linear-gradient(90deg, #14b8a6, #0d9488);
     box-shadow: 0 4px 15px rgba(20, 184, 166, 0.3);
+}
+
+.funnel-bar-large.loop {
+    background: linear-gradient(90deg, #ec4899, #db2777);
+    box-shadow: 0 4px 15px rgba(236, 72, 153, 0.3);
 }
 
 .funnel-bar-large.final {

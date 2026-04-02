@@ -12,7 +12,7 @@
             <h2 class="report-title">{{ hero_expert.expert.split('@')[0] ~ ' Performance' if expert_detail else 'Expert Analytics' }}</h2>
             <p class="report-description">
                 {% if expert_detail %}
-                Review this expert's funnel from screening through final round, with recent tasks and round distribution in the same workspace.
+                Review this expert's funnel from screening through loop and final rounds, with recent tasks and round distribution in the same workspace.
                 {% else %}
                 Compare expert volume, stage movement, and conversion quality so it is easier to spot who is carrying load and who is converting best.
                 {% endif %}
@@ -302,7 +302,21 @@
                     <span class="stage-label">3rd/Technical</span>
                 </div>
                 <div class="pipeline-arrow">
-                    <span class="conversion-rate">{{ expert_detail.third_to_final }}%</span>
+                    <span class="conversion-rate">{{ expert_detail.third_to_loop }}%</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                </div>
+                <div class="pipeline-stage">
+                    {% set hl = (expert_detail.loop_round / expert_detail.screening * 100) if expert_detail.screening > 0
+                    else 8 %}
+                    <div class="stage-bar loop" style="height: {{ [hl, 20]|max }}%">
+                        <span class="stage-count">{{ expert_detail.loop_round }}</span>
+                    </div>
+                    <span class="stage-label">Loop Round</span>
+                </div>
+                <div class="pipeline-arrow">
+                    <span class="conversion-rate">{{ expert_detail.loop_to_final }}%</span>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M5 12h14M12 5l7 7-7 7" />
                     </svg>
@@ -395,11 +409,13 @@
                         <th>1st</th>
                         <th>2nd</th>
                         <th>3rd/Tech</th>
+                        <th>Loop Round</th>
                         <th>Final</th>
                         <th>Scr to 1st</th>
                         <th>1st to 2nd</th>
                         <th>2nd to 3rd</th>
-                        <th>3rd to Fin</th>
+                        <th>3rd to Loop</th>
+                        <th>Loop to Fin</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -423,6 +439,7 @@
                         <td class="stage-cell first">{{ stat.first }}</td>
                         <td class="stage-cell second">{{ stat.second }}</td>
                         <td class="stage-cell third">{{ stat.third_tech }}</td>
+                        <td class="stage-cell loop">{{ stat.loop_round }}</td>
                         <td class="stage-cell final">{{ stat.final }}</td>
                         <td class="conversion-cell {% if stat.screening_to_1st >= 50 %}good{% elif stat.screening_to_1st >= 25 %}medium{% else %}low{% endif %}"
                             title="Actual: {{ stat.screening_to_1st }}%">
@@ -437,9 +454,14 @@
                             title="Actual: {{ stat.second_to_3rd }}%">
                             {{ [stat.second_to_3rd, 100]|min }}%{% if stat.second_to_3rd > 100 %}<sup>*</sup>{% endif %}
                         </td>
-                        <td class="conversion-cell {% if stat.third_to_final >= 50 %}good{% elif stat.third_to_final >= 25 %}medium{% else %}low{% endif %}"
-                            title="Actual: {{ stat.third_to_final }}%">
-                            {{ [stat.third_to_final, 100]|min }}%{% if stat.third_to_final > 100 %}<sup>*</sup>{% endif
+                        <td class="conversion-cell {% if stat.third_to_loop >= 50 %}good{% elif stat.third_to_loop >= 25 %}medium{% else %}low{% endif %}"
+                            title="Actual: {{ stat.third_to_loop }}%">
+                            {{ [stat.third_to_loop, 100]|min }}%{% if stat.third_to_loop > 100 %}<sup>*</sup>{% endif
+                            %}
+                        </td>
+                        <td class="conversion-cell {% if stat.loop_to_final >= 50 %}good{% elif stat.loop_to_final >= 25 %}medium{% else %}low{% endif %}"
+                            title="Actual: {{ stat.loop_to_final }}%">
+                            {{ [stat.loop_to_final, 100]|min }}%{% if stat.loop_to_final > 100 %}<sup>*</sup>{% endif
                             %}
                         </td>
                         <td>
@@ -576,10 +598,10 @@
     new Chart(funnelCtx, {
         type: 'bar',
         data: {
-            labels: ['Screening', '1st', '2nd', '3rd/Tech', 'Final'],
+            labels: ['Screening', '1st', '2nd', '3rd/Tech', 'Loop Round', 'Final'],
             datasets: [{
-                data: [{{ expert_detail.screening }}, {{ expert_detail.first }}, {{ expert_detail.second }}, {{ expert_detail.third_tech }}, {{ expert_detail.final }}],
-        backgroundColor: ['#3b82f6', '#8b5cf6', '#f97316', '#14b8a6', '#22c55e'],
+                data: [{{ expert_detail.screening }}, {{ expert_detail.first }}, {{ expert_detail.second }}, {{ expert_detail.third_tech }}, {{ expert_detail.loop_round }}, {{ expert_detail.final }}],
+        backgroundColor: ['#3b82f6', '#8b5cf6', '#f97316', '#14b8a6', '#ec4899', '#22c55e'],
         borderRadius: 6,
         borderSkipped: false
         }]
@@ -608,6 +630,7 @@
                 { label: '1st Round', data: expertStats.map(e => e.first), backgroundColor: '#8b5cf6', borderRadius: 4 },
                 { label: '2nd Round', data: expertStats.map(e => e.second), backgroundColor: '#f97316', borderRadius: 4 },
                 { label: '3rd/Technical', data: expertStats.map(e => e.third_tech), backgroundColor: '#14b8a6', borderRadius: 4 },
+                { label: 'Loop Round', data: expertStats.map(e => e.loop_round), backgroundColor: '#ec4899', borderRadius: 4 },
                 { label: 'Final', data: expertStats.map(e => e.final), backgroundColor: '#22c55e', borderRadius: 4 }
             ]
         },

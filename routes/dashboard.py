@@ -11,7 +11,7 @@ from routes.kpi import calculate_kpi_data
 from routes.po import fetch_po_records, get_supabase_client, month_label
 
 dashboard_bp = Blueprint("dashboard", __name__)
-DASHBOARD_CACHE_VERSION = "v2"
+DASHBOARD_CACHE_VERSION = "v3"
 
 
 def display_name(value):

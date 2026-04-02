@@ -22,7 +22,7 @@ from services.reference_data import (
 from services.team_management import normalize_lookup_text
 
 analytics_bp = Blueprint('analytics', __name__)
-ANALYTICS_CACHE_VERSION = "v3"
+ANALYTICS_CACHE_VERSION = "v4"
 
 # Round mapping from actualRound to funnel stages
 ROUND_BUCKETS = {
@@ -33,22 +33,70 @@ ROUND_BUCKETS = {
     "second round": "2nd",
     "3rd round": "3rd/Technical",
     "third round": "3rd/Technical",
+    "tech round": "3rd/Technical",
     "technical": "3rd/Technical",
     "technical round": "3rd/Technical",
+    "loop": "Loop Round",
+    "loop round": "Loop Round",
     "final": "Final",
     "final round": "Final",
-    "loop round": "Final",
 }
 
-PIPELINE_ORDER = ["Screening", "1st", "2nd", "3rd/Technical", "Final"]
+ROUND_BUCKET_PATTERNS = (
+    (re.compile(r"\bscreen(?:ing)?\b"), "Screening"),
+    (re.compile(r"\b(1st|first)\b"), "1st"),
+    (re.compile(r"\b(2nd|second)\b"), "2nd"),
+    (re.compile(r"\b(3rd|third)\b|\btech(?:nical)?\b"), "3rd/Technical"),
+    (re.compile(r"\bloop\b"), "Loop Round"),
+    (re.compile(r"\bfinal\b"), "Final"),
+)
+
+PIPELINE_ORDER = ["Screening", "1st", "2nd", "3rd/Technical", "Loop Round", "Final"]
 
 
 def normalize_round(r):
     """Normalize actualRound string to funnel stage."""
     if not r:
         return None
-    key = str(r).strip().lower()
-    return ROUND_BUCKETS.get(key)
+    key = re.sub(r"[^a-z0-9]+", " ", str(r).strip().lower()).strip()
+    if not key:
+        return None
+
+    mapped = ROUND_BUCKETS.get(key)
+    if mapped:
+        return mapped
+
+    for pattern, stage in ROUND_BUCKET_PATTERNS:
+        if pattern.search(key):
+            return stage
+
+    return None
+
+
+def build_funnel_metrics(stages):
+    """Build consistent funnel metrics from normalized stage counts."""
+    scr = stages.get("Screening", 0)
+    r1 = stages.get("1st", 0)
+    r2 = stages.get("2nd", 0)
+    r3 = stages.get("3rd/Technical", 0)
+    loop = stages.get("Loop Round", 0)
+    fin = stages.get("Final", 0)
+
+    return {
+        'interview_count': r1 + r2 + r3 + loop + fin,
+        'screening': scr,
+        'first': r1,
+        'second': r2,
+        'third_tech': r3,
+        'loop_round': loop,
+        'final': fin,
+        'screening_to_1st': pct(r1, scr),
+        'first_to_2nd': pct(r2, r1),
+        'second_to_3rd': pct(r3, r2),
+        'third_to_loop': pct(loop, r3),
+        'loop_to_final': pct(fin, loop),
+        'third_to_final': pct(fin, loop or r3),
+    }
 
 
 def pct(num, den):
@@ -283,26 +331,10 @@ def get_expert_funnel_data(db, start_date='', end_date='', filter_team=None, fil
         if filter_expert_key and expert != filter_expert_key:
             continue
 
-        scr = stages.get("Screening", 0)
-        r1 = stages.get("1st", 0)
-        r2 = stages.get("2nd", 0)
-        r3 = stages.get("3rd/Technical", 0)
-        fin = stages.get("Final", 0)
-        total_interviews = r1 + r2 + r3 + fin
-
         expert_stats.append({
             'expert': expert,
             'team': team_name,
-            'interview_count': total_interviews,
-            'screening': scr,
-            'first': r1,
-            'second': r2,
-            'third_tech': r3,
-            'final': fin,
-            'screening_to_1st': pct(r1, scr),
-            'first_to_2nd': pct(r2, r1),
-            'second_to_3rd': pct(r3, r2),
-            'third_to_final': pct(fin, r3),
+            **build_funnel_metrics(stages),
         })
 
     expert_stats.sort(key=lambda x: (x['screening_to_1st'], x['interview_count']), reverse=True)
@@ -356,32 +388,17 @@ def get_team_funnel_data(db, start_date='', end_date='', filter_team=None, filte
                 agg['1st'] += stats['first']
                 agg['2nd'] += stats['second']
                 agg['3rd/Technical'] += stats['third_tech']
+                agg['Loop Round'] += stats['loop_round']
                 agg['Final'] += stats['final']
 
         if contributing_members == 0:
             continue
 
-        scr = agg.get("Screening", 0)
-        r1 = agg.get("1st", 0)
-        r2 = agg.get("2nd", 0)
-        r3 = agg.get("3rd/Technical", 0)
-        fin = agg.get("Final", 0)
-        total_interviews = r1 + r2 + r3 + fin
-
         team_stats.append({
             'team': team_name,
             'member_count': len(members),
             'active_member_count': contributing_members,
-            'interview_count': total_interviews,
-            'screening': scr,
-            'first': r1,
-            'second': r2,
-            'third_tech': r3,
-            'final': fin,
-            'screening_to_1st': pct(r1, scr),
-            'first_to_2nd': pct(r2, r1),
-            'second_to_3rd': pct(r3, r2),
-            'third_to_final': pct(fin, r3),
+            **build_funnel_metrics(agg),
         })
 
     team_stats.sort(key=lambda x: (x['screening_to_1st'], x['interview_count']), reverse=True)
@@ -1017,10 +1034,11 @@ def export_preview():
                 '1st': exp.get('first', 0),
                 '2nd': exp.get('second', 0),
                 '3rd/Tech': exp.get('third_tech', 0),
+                'Loop Round': exp.get('loop_round', 0),
                 'Final': exp.get('final', 0),
                 'Conv%': exp.get('screening_to_1st', 0)
             })
-        fields = ['Expert', 'Team', 'Screening', '1st', '2nd', '3rd/Tech', 'Final', 'Conv%']
+        fields = ['Expert', 'Team', 'Screening', '1st', '2nd', '3rd/Tech', 'Loop Round', 'Final', 'Conv%']
 
     elif export_type == 'experts':
         expert_stats, _ = get_expert_funnel_data(db, start_date, end_date, filter_team, filter_expert)
@@ -1029,10 +1047,16 @@ def export_preview():
                 'Rank': exp.get('rank', 0),
                 'Expert': exp.get('expert', '').split('@')[0],
                 'Team': exp.get('team', ''),
+                'Screening': exp.get('screening', 0),
+                '1st': exp.get('first', 0),
+                '2nd': exp.get('second', 0),
+                '3rd/Tech': exp.get('third_tech', 0),
+                'Loop Round': exp.get('loop_round', 0),
+                'Final': exp.get('final', 0),
                 'Total': exp.get('interview_count', 0),
                 'Conv%': exp.get('screening_to_1st', 0)
             })
-        fields = ['Rank', 'Expert', 'Team', 'Total', 'Conv%']
+        fields = ['Rank', 'Expert', 'Team', 'Screening', '1st', '2nd', '3rd/Tech', 'Loop Round', 'Final', 'Total', 'Conv%']
 
     elif export_type == 'interview_stats':
         # Interview stats: Completed, Cancelled, Rescheduled counts per expert
@@ -1345,12 +1369,14 @@ def export_funnel_combined_excel(db, start_date, end_date, filter_team, filter_e
             '1st': exp.get('first', 0),
             '2nd': exp.get('second', 0),
             '3rd/Technical': exp.get('third_tech', 0),
+            'Loop Round': exp.get('loop_round', 0),
             'Final': exp.get('final', 0),
             'Total_Interviews': exp.get('interview_count', 0),
             'Screening_to_1st_%': exp.get('screening_to_1st', 0),
             '1st_to_2nd_%': exp.get('first_to_2nd', 0),
             '2nd_to_3rd_%': exp.get('second_to_3rd', 0),
-            '3rd_to_Final_%': exp.get('third_to_final', 0)
+            '3rd_to_Loop_%': exp.get('third_to_loop', 0),
+            'Loop_to_Final_%': exp.get('loop_to_final', 0),
         })
 
     # Create team DataFrame
@@ -1364,12 +1390,14 @@ def export_funnel_combined_excel(db, start_date, end_date, filter_team, filter_e
             '1st': team.get('first', 0),
             '2nd': team.get('second', 0),
             '3rd/Technical': team.get('third_tech', 0),
+            'Loop Round': team.get('loop_round', 0),
             'Final': team.get('final', 0),
             'Total_Interviews': team.get('interview_count', 0),
             'Screening_to_1st_%': team.get('screening_to_1st', 0),
             '1st_to_2nd_%': team.get('first_to_2nd', 0),
             '2nd_to_3rd_%': team.get('second_to_3rd', 0),
-            '3rd_to_Final_%': team.get('third_to_final', 0)
+            '3rd_to_Loop_%': team.get('third_to_loop', 0),
+            'Loop_to_Final_%': team.get('loop_to_final', 0),
         })
 
     if not expert_rows and not team_rows:
@@ -1422,6 +1450,7 @@ def export_experts_excel(expert_stats, start_date, end_date, export_format='exce
             '1st': exp.get('first', 0),
             '2nd': exp.get('second', 0),
             '3rd/Technical': exp.get('third_tech', 0),
+            'Loop Round': exp.get('loop_round', 0),
             'Final': exp.get('final', 0),
             'Total': exp.get('interview_count', 0),
             'Conversion_%': exp.get('screening_to_1st', 0)
@@ -1466,6 +1495,7 @@ def export_teams_excel(team_stats, start_date, end_date, export_format='excel'):
             '1st': team.get('first', 0),
             '2nd': team.get('second', 0),
             '3rd/Technical': team.get('third_tech', 0),
+            'Loop Round': team.get('loop_round', 0),
             'Final': team.get('final', 0),
             'Total': team.get('interview_count', 0),
             'Conversion_%': team.get('screening_to_1st', 0)
