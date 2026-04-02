@@ -13,6 +13,7 @@ from services.reference_data import get_kpi_round_titles, get_teams_reference
 from services.team_management import mongo_normalized_text, normalize_lookup_text
 
 kpi_bp = Blueprint('kpi', __name__)
+KPI_CACHE_VERSION = "v2"
 
 
 def extract_first_assigned_expert(replies):
@@ -210,7 +211,8 @@ def api_matched_candidates():
         return jsonify({'success': False, 'error': 'Expert email required'}), 400
 
     try:
-        cache_key = "kpi:matched:{0}:{1}:{2}:{3}:{4}".format(
+        cache_key = "kpi:matched:{0}:{1}:{2}:{3}:{4}:{5}".format(
+            KPI_CACHE_VERSION,
             expert_email,
             start_date or "all",
             end_date or "all",
@@ -249,7 +251,7 @@ def api_matched_candidates():
         for doc in task_docs:
             first_expert = extract_first_assigned_expert(doc.get('replies', []))
             if not first_expert:
-                first_expert = (doc.get('assignedTo') or '').lower()
+                first_expert = normalize_lookup_text(doc.get('assignedTo'))
 
             if first_expert == expert_email:
                 candidate_name = doc.get('Candidate Name', '')
@@ -349,7 +351,8 @@ def calculate_kpi_data(db, start_date='', end_date='', filter_team=None, filter_
     """
     exclude_rounds = exclude_rounds or []
     filter_expert_key = normalize_lookup_text(filter_expert)
-    cache_key = "kpi:data:{0}:{1}:{2}:{3}:{4}:{5}".format(
+    cache_key = "kpi:data:{0}:{1}:{2}:{3}:{4}:{5}:{6}".format(
+        KPI_CACHE_VERSION,
         start_date or "all",
         end_date or "all",
         filter_team or "all",
@@ -407,7 +410,7 @@ def calculate_kpi_data(db, start_date='', end_date='', filter_team=None, filter_
 
         if not first_expert:
             # Fallback to assignedTo if no first assignment found
-            first_expert = (doc.get('assignedTo') or '').lower()
+            first_expert = normalize_lookup_text(doc.get('assignedTo'))
 
         if not first_expert:
             continue

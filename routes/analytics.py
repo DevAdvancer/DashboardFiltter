@@ -22,6 +22,7 @@ from services.reference_data import (
 from services.team_management import normalize_lookup_text
 
 analytics_bp = Blueprint('analytics', __name__)
+ANALYTICS_CACHE_VERSION = "v3"
 
 # Round mapping from actualRound to funnel stages
 ROUND_BUCKETS = {
@@ -89,7 +90,7 @@ def get_analytics_filter_options(completed_only=True):
 
 def analytics_cache_key(name, *parts):
     serialized = ":".join(str(part) if part not in (None, "") else "all" for part in parts)
-    return f"analytics:{name}:{serialized}"
+    return f"analytics:{ANALYTICS_CACHE_VERSION}:{name}:{serialized}"
 
 
 def get_po_access_cache_token():
@@ -609,11 +610,28 @@ def interview_stats():
         ]
 
         results = list(db.taskBody.aggregate(pipeline))
-        expert_stats_map = {
-            normalize_lookup_text(r["Expert"]): {**r, "Expert": normalize_lookup_text(r["Expert"])}
-            for r in results
-            if normalize_lookup_text(r.get("Expert"))
-        }
+        expert_stats_map = {}
+        for r in results:
+            expert_key = normalize_lookup_text(r.get("Expert"))
+            if not expert_key:
+                continue
+
+            expert_stats_map.setdefault(
+                expert_key,
+                {
+                    "Expert": expert_key,
+                    "CompletedCount": 0,
+                    "CancelledCount": 0,
+                    "RescheduledCount": 0,
+                    "NotDoneCount": 0,
+                    "TotalInterviews": 0,
+                },
+            )
+            expert_stats_map[expert_key]["CompletedCount"] += r.get("CompletedCount", 0)
+            expert_stats_map[expert_key]["CancelledCount"] += r.get("CancelledCount", 0)
+            expert_stats_map[expert_key]["RescheduledCount"] += r.get("RescheduledCount", 0)
+            expert_stats_map[expert_key]["NotDoneCount"] += r.get("NotDoneCount", 0)
+            expert_stats_map[expert_key]["TotalInterviews"] += r.get("TotalInterviews", 0)
         po_team_counts = po_counts["team_counts"]
         po_expert_counts = po_counts["expert_counts"]
 
@@ -1040,6 +1058,7 @@ def export_preview():
         ]
         results = list(db.taskBody.aggregate(pipeline))
 
+        preview_map = {}
         for r in results:
             expert = r['_id']
             expert_key = normalize_lookup_text(expert)
@@ -1050,14 +1069,22 @@ def export_preview():
                 continue
             if filter_expert and expert_key != filter_expert:
                 continue
-            preview_data.append({
-                'Team': team,
-                'Expert': expert_key.split('@')[0] if '@' in expert_key else expert_key,
-                'Completed': r.get('Completed', 0),
-                'Cancelled': r.get('Cancelled', 0),
-                'Rescheduled': r.get('Rescheduled', 0),
-                'Total': r.get('Total', 0)
-            })
+            preview_map.setdefault(
+                expert_key,
+                {
+                    'Team': team,
+                    'Expert': expert_key.split('@')[0] if '@' in expert_key else expert_key,
+                    'Completed': 0,
+                    'Cancelled': 0,
+                    'Rescheduled': 0,
+                    'Total': 0,
+                },
+            )
+            preview_map[expert_key]['Completed'] += r.get('Completed', 0)
+            preview_map[expert_key]['Cancelled'] += r.get('Cancelled', 0)
+            preview_map[expert_key]['Rescheduled'] += r.get('Rescheduled', 0)
+            preview_map[expert_key]['Total'] += r.get('Total', 0)
+        preview_data.extend(preview_map.values())
         fields = ['Team', 'Expert', 'Completed', 'Cancelled', 'Rescheduled', 'Total']
 
     total_count = len(preview_data)
@@ -1242,7 +1269,7 @@ def export_team_summary_excel(db, start_date, end_date, filter_team, filter_expe
         if expert_key not in expert_stats:
             expert_stats[expert_key] = {'Completed': 0, 'Cancelled': 0, 'Rescheduled': 0}
 
-        expert_stats[expert_key][status] = count
+        expert_stats[expert_key][status] += count
 
     excel_rows = []
     for expert, stats in expert_stats.items():
@@ -1498,7 +1525,7 @@ def export_interview_stats_excel(db, start_date, end_date, filter_team, filter_e
     ]
     results = list(db.taskBody.aggregate(pipeline))
 
-    excel_rows = []
+    merged_rows = {}
     for r in results:
         expert = r['_id']
         expert_key = normalize_lookup_text(expert)
@@ -1509,14 +1536,23 @@ def export_interview_stats_excel(db, start_date, end_date, filter_team, filter_e
             continue
         if filter_expert and expert_key != filter_expert:
             continue
-        excel_rows.append({
-            'Team': team,
-            'Expert': expert_key,
-            'Completed': r.get('Completed', 0),
-            'Cancelled': r.get('Cancelled', 0),
-            'Rescheduled': r.get('Rescheduled', 0),
-            'Total': r.get('Total', 0)
-        })
+        merged_rows.setdefault(
+            expert_key,
+            {
+                'Team': team,
+                'Expert': expert_key,
+                'Completed': 0,
+                'Cancelled': 0,
+                'Rescheduled': 0,
+                'Total': 0,
+            },
+        )
+        merged_rows[expert_key]['Completed'] += r.get('Completed', 0)
+        merged_rows[expert_key]['Cancelled'] += r.get('Cancelled', 0)
+        merged_rows[expert_key]['Rescheduled'] += r.get('Rescheduled', 0)
+        merged_rows[expert_key]['Total'] += r.get('Total', 0)
+
+    excel_rows = list(merged_rows.values())
 
     if not excel_rows:
         return jsonify({'success': False, 'error': 'No data to export for the given filters'})

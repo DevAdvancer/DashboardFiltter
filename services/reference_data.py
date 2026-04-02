@@ -3,7 +3,7 @@ from flask import current_app, has_app_context
 from db import get_db, get_teams_db
 from services.team_management import clean_text, normalize_lookup_text
 
-CACHE_VERSION = "v1"
+CACHE_VERSION = "v2"
 
 
 def _cache_key(name, *parts):

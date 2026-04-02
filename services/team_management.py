@@ -14,6 +14,7 @@ PO_NAME_ALIASES = {
 PO_PLACEHOLDER_NAMES = {"n/a", "na", "not applicable", "none", "null", "nil"}
 NAME_MATCH_THRESHOLD = 0.84
 NAME_MATCH_MARGIN = 0.05
+TEAM_MANAGEMENT_CACHE_VERSION = "v2"
 
 
 def clean_text(value):
@@ -204,7 +205,7 @@ def get_team_management_directory():
     if has_app_context():
         cache = getattr(current_app, "cache", None)
         if cache:
-            cache_key = "team-management:directory:v1"
+            cache_key = f"team-management:directory:{TEAM_MANAGEMENT_CACHE_VERSION}"
             cached = cache.get(cache_key)
             if cached is not None:
                 return cached

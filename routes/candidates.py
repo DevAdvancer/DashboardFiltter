@@ -29,8 +29,8 @@ from services.team_management import (
 candidates_bp = Blueprint('candidates', __name__)
 
 PO_MATCH_THRESHOLD = 0.8
-PO_RECORDS_CACHE_KEY = "expert_activity_po_records_v1"
-EXPERT_ACTIVITY_CACHE_VERSION = "v3"
+PO_RECORDS_CACHE_KEY = "expert_activity_po_records_v2"
+EXPERT_ACTIVITY_CACHE_VERSION = "v4"
 
 
 def get_team_options():

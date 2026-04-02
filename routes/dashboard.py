@@ -11,6 +11,7 @@ from routes.kpi import calculate_kpi_data
 from routes.po import fetch_po_records, get_supabase_client, month_label
 
 dashboard_bp = Blueprint("dashboard", __name__)
+DASHBOARD_CACHE_VERSION = "v2"
 
 
 def display_name(value):
@@ -76,7 +77,7 @@ def index():
     start_date, end_date = get_dashboard_dates()
 
     @cache.memoize(timeout=300)
-    def get_dashboard_data(start_date, end_date):
+    def get_dashboard_data(start_date, end_date, cache_version):
         db = get_db()
         teams_db = get_teams_db()
 
@@ -462,5 +463,5 @@ def index():
             "recent_records": recent_records,
         }
 
-    data = get_dashboard_data(start_date, end_date)
+    data = get_dashboard_data(start_date, end_date, DASHBOARD_CACHE_VERSION)
     return render_template("index.html", **data)
