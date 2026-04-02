@@ -260,12 +260,16 @@ def build_summary_rows(records):
     for row in rows:
         row.update(summarize_dates(row["date_values"]))
 
-    rows.sort(key=lambda row: row["team_lead_name"].lower())
-    rows.sort(key=lambda row: row["manager_name"].lower())
-    rows.sort(key=lambda row: row["expert_name"].lower())
-    rows.sort(key=lambda row: row["team_name"].lower())
-    rows.sort(key=lambda row: row["po_count"], reverse=True)
-    rows.sort(key=lambda row: row["latest_sort_ts"], reverse=True)
+    rows.sort(
+        key=lambda row: (
+            -row["po_count"],
+            -row["latest_sort_ts"],
+            row["team_name"].lower(),
+            row["expert_name"].lower(),
+            row["manager_name"].lower(),
+            row["team_lead_name"].lower(),
+        )
+    )
     return rows
 
 

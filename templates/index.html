@@ -10,7 +10,7 @@
             <span class="dashboard-kicker">Command Center</span>
             <h2>One dashboard for the pages we kept.</h2>
             <p>
-                Scan expert, team, interview, KPI, candidate, management, and PO signals in one place,
+                Scan expert, team, interview, candidate, management, and PO signals in one place,
                 then jump straight into the page that owns each insight.
             </p>
             <div class="dashboard-banner-badges">
@@ -99,9 +99,9 @@
                 <span class="hero-stat-label">Average Match Rate</span>
                 <span class="hero-stat-sublabel">
                     {% if leaders.kpi %}
-                    Best KPI lead: {{ leaders.kpi.expert.split('@')[0] }}
+                    Best match-rate lead: {{ leaders.kpi.expert.split('@')[0] }}
                     {% else %}
-                    KPI data is waiting for completed matches
+                    Match-rate data is waiting for completed matches
                     {% endif %}
                 </span>
             </div>
@@ -294,19 +294,19 @@
             <div class="card-header">
                 <h3 class="card-title">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                        <path d="M3 3v18h18" />
-                        <path d="M7 15l4-4 3 3 5-6" />
+                        <circle cx="11" cy="11" r="7" />
+                        <path d="m21 21-4.35-4.35" />
                     </svg>
-                    KPI Sidebar Match Rates
+                    Candidate Lookup Focus
                 </h3>
-                <a href="{{ url_for('kpi.kpi_sidebar') }}" class="btn btn-ghost btn-sm">Open</a>
+                <a href="{{ url_for('candidates.candidate_lookup') }}" class="btn btn-ghost btn-sm">Open</a>
             </div>
-            {% if kpi_chart %}
+            {% if candidate_focus_chart %}
             <div class="chart-container tall">
-                <canvas id="kpiChart" aria-label="KPI match rate chart"></canvas>
+                <canvas id="candidateFocusChart" aria-label="Candidate lookup focus chart"></canvas>
             </div>
             {% else %}
-            <div class="dashboard-empty-note">No KPI match-rate data is available for this period.</div>
+            <div class="dashboard-empty-note">No candidate lookup highlights are available for this period.</div>
             {% endif %}
         </section>
 
@@ -332,48 +332,26 @@
         </section>
     </div>
 
-    <div class="dashboard-grid-two">
-        <section class="chart-card card">
-            <div class="card-header">
-                <h3 class="card-title">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                        <circle cx="11" cy="11" r="7" />
-                        <path d="m21 21-4.35-4.35" />
-                    </svg>
-                    Candidate Lookup Focus
-                </h3>
-                <a href="{{ url_for('candidates.candidate_lookup') }}" class="btn btn-ghost btn-sm">Open</a>
-            </div>
-            {% if candidate_focus_chart %}
-            <div class="chart-container tall">
-                <canvas id="candidateFocusChart" aria-label="Candidate lookup focus chart"></canvas>
-            </div>
-            {% else %}
-            <div class="dashboard-empty-note">No candidate lookup highlights are available for this period.</div>
-            {% endif %}
-        </section>
-
-        <section class="chart-card card">
-            <div class="card-header">
-                <h3 class="card-title">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                        <polyline points="14,2 14,8 20,8" />
-                        <line x1="8" y1="13" x2="16" y2="13" />
-                    </svg>
-                    PO Intake Trend
-                </h3>
-                <a href="{{ url_for('po.po_dashboard') }}" class="btn btn-ghost btn-sm">Open</a>
-            </div>
-            {% if po_chart %}
-            <div class="chart-container tall">
-                <canvas id="poChart" aria-label="PO intake trend chart"></canvas>
-            </div>
-            {% else %}
-            <div class="dashboard-empty-note">{{ po_summary.message }}</div>
-            {% endif %}
-        </section>
-    </div>
+    <section class="chart-card card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                    <polyline points="14,2 14,8 20,8" />
+                    <line x1="8" y1="13" x2="16" y2="13" />
+                </svg>
+                PO Intake Trend
+            </h3>
+            <a href="{{ url_for('po.po_dashboard') }}" class="btn btn-ghost btn-sm">Open</a>
+        </div>
+        {% if po_chart %}
+        <div class="chart-container tall">
+            <canvas id="poChart" aria-label="PO intake trend chart"></canvas>
+        </div>
+        {% else %}
+        <div class="dashboard-empty-note">{{ po_summary.message }}</div>
+        {% endif %}
+    </section>
 
     <div class="leaderboards-row">
         <section class="leaderboard-card card">
@@ -655,7 +633,6 @@
     const teamData = {{ team_chart|tojson|default('[]', true) }};
     const interviewStatusData = {{ interview_status_chart|tojson|default('[]', true) }};
     const recordRoundData = {{ record_round_chart|tojson|default('[]', true) }};
-    const kpiData = {{ kpi_chart|tojson|default('[]', true) }};
     const activityData = {{ activity_chart|tojson|default('[]', true) }};
     const candidateFocusData = {{ candidate_focus_chart|tojson|default('[]', true) }};
     const poData = {{ po_chart|tojson|default('[]', true) }};
@@ -676,11 +653,6 @@
         background: 'rgba(245, 158, 11, 0.78)',
         border: '#f59e0b'
     });
-
-    buildHorizontalBarChart('kpiChart', kpiData, 'Match Rate', {
-        background: 'rgba(20, 184, 166, 0.75)',
-        border: '#14b8a6'
-    }, '%', 100);
 
     buildVerticalBarChart('activityChart', activityData, 'Active Candidates', {
         background: 'rgba(236, 72, 153, 0.75)',

@@ -5,7 +5,14 @@ from collections import Counter, defaultdict
 from functools import lru_cache
 import pandas as pd
 import re
+import json
 from io import BytesIO
+from po_security import (
+    filter_records_for_po_access,
+    get_current_po_access,
+    po_pin_security_enabled,
+)
+from routes.po import fetch_po_records, get_supabase_client
 from services.reference_data import (
     get_active_expert_emails,
     get_active_task_experts,
@@ -82,6 +89,90 @@ def get_analytics_filter_options(completed_only=True):
 def analytics_cache_key(name, *parts):
     serialized = ":".join(str(part) if part not in (None, "") else "all" for part in parts)
     return f"analytics:{name}:{serialized}"
+
+
+def get_po_access_cache_token():
+    access = get_current_po_access()
+    if po_pin_security_enabled() and not access:
+        return "locked"
+    if not access:
+        return "public"
+    return json.dumps(access, sort_keys=True, default=str)
+
+
+def get_po_count_maps(start_date="", end_date=""):
+    access = get_current_po_access()
+    cache_key = analytics_cache_key(
+        "po-count-maps",
+        start_date,
+        end_date,
+        get_po_access_cache_token(),
+    )
+    cached = current_app.cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    if po_pin_security_enabled() and not access:
+        value = {
+            "state": "locked",
+            "team_counts": {},
+            "expert_counts": {},
+            "total": None,
+        }
+        current_app.cache.set(cache_key, value, timeout=300)
+        return value
+
+    try:
+        records = filter_records_for_po_access(fetch_po_records(get_supabase_client()), access)
+        start_value = start_date[:10] if start_date else ""
+        end_value = end_date[:10] if end_date else ""
+
+        filtered_records = [
+            record
+            for record in records
+            if (
+                not start_value
+                or (
+                    record.get("mail_date")
+                    and str(record.get("mail_date")) >= start_value
+                )
+            )
+            and (
+                not end_value
+                or (
+                    record.get("mail_date")
+                    and str(record.get("mail_date")) <= end_value
+                )
+            )
+        ]
+
+        team_counts = Counter(
+            record.get("team_name")
+            for record in filtered_records
+            if record.get("team_name")
+        )
+        expert_counts = Counter(
+            (record.get("expert_email") or "").lower()
+            for record in filtered_records
+            if record.get("expert_email")
+        )
+
+        value = {
+            "state": "ready",
+            "team_counts": dict(team_counts),
+            "expert_counts": dict(expert_counts),
+            "total": len(filtered_records),
+        }
+    except Exception:
+        value = {
+            "state": "unavailable",
+            "team_counts": {},
+            "expert_counts": {},
+            "total": None,
+        }
+
+    current_app.cache.set(cache_key, value, timeout=300)
+    return value
 
 
 def build_task_query(start_date='', end_date=''):
@@ -453,8 +544,16 @@ def interview_stats():
     active_experts = get_active_experts(db)
     _, teams_map = get_expert_team_map(db)
     teams_list, all_experts, _ = get_analytics_filter_options(completed_only=False)
+    po_counts = get_po_count_maps(start_date, end_date)
 
-    cache_key = analytics_cache_key("interview-stats-page", start_date, end_date, filter_team, filter_expert)
+    cache_key = analytics_cache_key(
+        "interview-stats-page",
+        start_date,
+        end_date,
+        filter_team,
+        filter_expert,
+        get_po_access_cache_token(),
+    )
     cached = current_app.cache.get(cache_key)
     if cached is None:
         date_match = {}
@@ -508,6 +607,8 @@ def interview_stats():
 
         results = list(db.taskBody.aggregate(pipeline))
         expert_stats_map = {r["Expert"]: r for r in results}
+        po_team_counts = po_counts["team_counts"]
+        po_expert_counts = po_counts["expert_counts"]
 
         team_data = []
         expert_data = []
@@ -551,7 +652,8 @@ def interview_stats():
                     'cancelled': x,
                     'rescheduled': r,
                     'notdone': nd,
-                    'total': t
+                    'total': t,
+                    'po_count': po_expert_counts.get(str(expert).lower(), 0),
                 })
 
                 expert_data.append({
@@ -561,7 +663,8 @@ def interview_stats():
                     'cancelled': x,
                     'rescheduled': r,
                     'notdone': nd,
-                    'total': t
+                    'total': t,
+                    'po_count': po_expert_counts.get(str(expert).lower(), 0),
                 })
 
             team_data.append({
@@ -573,6 +676,7 @@ def interview_stats():
                 'rescheduled': team_rescheduled,
                 'notdone': team_notdone,
                 'total': team_total,
+                'po_count': po_team_counts.get(team_name, 0),
                 'members': sorted(member_stats, key=lambda x: x['total'], reverse=True)
             })
 
@@ -587,6 +691,7 @@ def interview_stats():
             'overall_rescheduled': sum(t['rescheduled'] for t in team_data),
             'overall_notdone': sum(t['notdone'] for t in team_data),
             'overall_total': sum(t['total'] for t in team_data),
+            'po_counts_state': po_counts['state'],
         }
         current_app.cache.set(cache_key, cached, timeout=300)
 
@@ -605,7 +710,8 @@ def interview_stats():
         overall_cancelled=cached['overall_cancelled'],
         overall_rescheduled=cached['overall_rescheduled'],
         overall_notdone=cached['overall_notdone'],
-        overall_total=cached['overall_total']
+        overall_total=cached['overall_total'],
+        po_counts_state=cached['po_counts_state'],
     )
 
 @lru_cache(maxsize=4096)

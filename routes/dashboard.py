@@ -336,13 +336,6 @@ def index():
                 "tone": "orange",
             },
             {
-                "name": "KPI Sidebar",
-                "metric": f"{kpi_data.get('summary', {}).get('avg_match_rate', 0)}% avg match",
-                "description": "First-assignment attribution and match quality.",
-                "href": url_for("kpi.kpi_sidebar"),
-                "tone": "teal",
-            },
-            {
                 "name": "Expert Activity",
                 "metric": f"{activity_summary.get('active_candidates', 0)} active candidates",
                 "description": f"Monthly activity snapshot for {activity_period_label}.",
