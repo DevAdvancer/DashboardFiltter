@@ -3,7 +3,49 @@
 {% block title %}Candidate Lookup{% endblock %}
 
 {% block content %}
-<div class="page-content">
+<div class="page-content report-page">
+    <section class="card report-hero">
+        <div class="report-copy">
+            <span class="report-eyebrow">Candidate Drill-Down</span>
+            <h2 class="report-title">{{ candidate_data.name if candidate_data else 'Candidate Lookup' }}</h2>
+            <p class="report-description">
+                {% if candidate_data %}
+                This view pulls a candidate's interview timeline, round mix, and expert coverage into a single searchable page.
+                {% else %}
+                Search for any candidate to open a clean timeline of interviews, round distribution, and expert assignments without leaving the dashboard flow.
+                {% endif %}
+            </p>
+        </div>
+        <div class="report-highlights">
+            <div class="report-highlight">
+                <span class="report-highlight-label">Interviews</span>
+                <span class="report-highlight-value">{{ candidate_data.total_interviews if candidate_data else 'Search' }}</span>
+                <span class="report-highlight-meta">
+                    {% if candidate_data %}
+                    Total interview touchpoints for {{ candidate_data.name }}
+                    {% else %}
+                    Start with a candidate name from the autocomplete list
+                    {% endif %}
+                </span>
+            </div>
+            <div class="report-highlight">
+                <span class="report-highlight-label">Completion Rate</span>
+                <span class="report-highlight-value">{{ candidate_data.completion_rate if candidate_data else 0 }}%</span>
+                <span class="report-highlight-meta">How much of the candidate journey reached completion</span>
+            </div>
+            <div class="report-highlight">
+                <span class="report-highlight-label">Experts Involved</span>
+                <span class="report-highlight-value">{{ candidate_data.unique_experts if candidate_data else 0 }}</span>
+                <span class="report-highlight-meta">Distinct experts tied to this candidate's interview history</span>
+            </div>
+            <div class="report-highlight">
+                <span class="report-highlight-label">Round Coverage</span>
+                <span class="report-highlight-value">{{ candidate_data.unique_rounds if candidate_data else 0 }}</span>
+                <span class="report-highlight-meta">Unique interview stages represented in the current result</span>
+            </div>
+        </div>
+    </section>
+
     <!-- Search Card -->
     <div class="card filters-card">
         <form method="GET" action="{{ url_for('candidates.candidate_lookup') }}" class="filters-form" id="lookup-form">

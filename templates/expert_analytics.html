@@ -4,7 +4,52 @@
 {% block title %}Expert Analytics{% endblock %}
 
 {% block content %}
-<div class="analytics-page">
+{% set hero_expert = expert_detail or (expert_stats[0] if expert_stats else None) %}
+<div class="analytics-page report-page">
+    <section class="card report-hero">
+        <div class="report-copy">
+            <span class="report-eyebrow">Conversion Report</span>
+            <h2 class="report-title">{{ hero_expert.expert.split('@')[0] ~ ' Performance' if expert_detail else 'Expert Analytics' }}</h2>
+            <p class="report-description">
+                {% if expert_detail %}
+                Review this expert's funnel from screening through final round, with recent tasks and round distribution in the same workspace.
+                {% else %}
+                Compare expert volume, stage movement, and conversion quality so it is easier to spot who is carrying load and who is converting best.
+                {% endif %}
+            </p>
+        </div>
+        <div class="report-highlights">
+            <div class="report-highlight">
+                <span class="report-highlight-label">Current Focus</span>
+                <span class="report-highlight-value">{{ hero_expert.expert.split('@')[0] if hero_expert else 'No data' }}</span>
+                <span class="report-highlight-meta">
+                    {% if expert_detail %}
+                    {{ expert_detail.team }} team, rank #{{ expert_detail.rank }}
+                    {% elif hero_expert %}
+                    Highest ranked expert in the current filter window
+                    {% else %}
+                    Adjust the date filters to populate expert insights
+                    {% endif %}
+                </span>
+            </div>
+            <div class="report-highlight">
+                <span class="report-highlight-label">Interviews Tracked</span>
+                <span class="report-highlight-value">{{ expert_detail.interview_count if expert_detail else expert_stats|sum(attribute='interview_count') }}</span>
+                <span class="report-highlight-meta">{{ start_date or 'All time' }} to {{ end_date or 'Today' }}</span>
+            </div>
+            <div class="report-highlight">
+                <span class="report-highlight-label">Screening to 1st</span>
+                <span class="report-highlight-value">{{ hero_expert.screening_to_1st if hero_expert else 0 }}%</span>
+                <span class="report-highlight-meta">Fastest indicator of expert conversion quality</span>
+            </div>
+            <div class="report-highlight">
+                <span class="report-highlight-label">Final Round Volume</span>
+                <span class="report-highlight-value">{{ expert_detail.final if expert_detail else expert_stats|sum(attribute='final') }}</span>
+                <span class="report-highlight-meta">Final-stage interviews across the current scope</span>
+            </div>
+        </div>
+    </section>
+
     <!-- Quick Select Filters -->
     <div class="quick-filters card">
         <div class="quick-filters-label">
@@ -351,10 +396,10 @@
                         <th>2nd</th>
                         <th>3rd/Tech</th>
                         <th>Final</th>
-                        <th>Scr→1st</th>
-                        <th>1st→2nd</th>
-                        <th>2nd→3rd</th>
-                        <th>3rd→Fin</th>
+                        <th>Scr to 1st</th>
+                        <th>1st to 2nd</th>
+                        <th>2nd to 3rd</th>
+                        <th>3rd to Fin</th>
                         <th></th>
                     </tr>
                 </thead>

@@ -4,7 +4,46 @@
 {% block title %}Interview Records{% endblock %}
 
 {% block content %}
-<div class="analytics-page">
+{% set lead_team = team_data[0] if team_data else None %}
+<div class="analytics-page report-page">
+    <section class="card report-hero">
+        <div class="report-copy">
+            <span class="report-eyebrow">Operations Log</span>
+            <h2 class="report-title">Interview Records</h2>
+            <p class="report-description">
+                Browse completed interview records by team and expert, then expand into the detailed log when you need subject-level context.
+            </p>
+        </div>
+        <div class="report-highlights">
+            <div class="report-highlight">
+                <span class="report-highlight-label">Completed Logs</span>
+                <span class="report-highlight-value">{{ overall_total }}</span>
+                <span class="report-highlight-meta">Completed records inside the current filter window</span>
+            </div>
+            <div class="report-highlight">
+                <span class="report-highlight-label">Active Experts</span>
+                <span class="report-highlight-value">{{ team_data|sum(attribute='active_count') }}</span>
+                <span class="report-highlight-meta">Experts with completed records across {{ team_data|length }} teams</span>
+            </div>
+            <div class="report-highlight">
+                <span class="report-highlight-label">Busiest Team</span>
+                <span class="report-highlight-value">{{ lead_team.team if lead_team else 'No data' }}</span>
+                <span class="report-highlight-meta">
+                    {% if lead_team %}
+                    {{ lead_team.total }} interview records in the selected range
+                    {% else %}
+                    Adjust filters to surface recent completed work
+                    {% endif %}
+                </span>
+            </div>
+            <div class="report-highlight">
+                <span class="report-highlight-label">Date Window</span>
+                <span class="report-highlight-value">{{ start_date or 'All' }} - {{ end_date or 'All' }}</span>
+                <span class="report-highlight-meta">Use quick presets to jump between review windows</span>
+            </div>
+        </div>
+    </section>
+
     <!-- Filters Section -->
     <div class="filters-card card">
         <form method="GET" action="{{ url_for('analytics.interview_records') }}" class="filters-form"

@@ -66,7 +66,7 @@
                             <rect x="3" y="14" width="7" height="7" rx="1" />
                             <rect x="14" y="11" width="7" height="10" rx="1" />
                         </svg>
-                        <span>Dashboard Overview</span>
+                        <span>Dashboard</span>
                     </a>
                     <a href="{{ url_for('analytics.expert_analytics') }}"
                         class="nav-link {% if request.endpoint == 'analytics.expert_analytics' %}active{% endif %}">
@@ -84,13 +84,6 @@
                             <path d="M3 18c0-3 3-5 6-5 1.5 0 3 .5 4 1.5M15 13c3 0 6 2 6 5" />
                         </svg>
                         <span>Team Analytics</span>
-                    </a>
-                    <a href="{{ url_for('analytics.funnel_analytics') }}"
-                        class="nav-link {% if request.endpoint == 'analytics.funnel_analytics' %}active{% endif %}">
-                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M3 4h18l-6 8v6l-6 2V12L3 4z" />
-                        </svg>
-                        <span>Funnel Analytics</span>
                     </a>
                     <a href="{{ url_for('kpi.kpi_sidebar') }}"
                         class="nav-link {% if request.endpoint == 'kpi.kpi_sidebar' %}active{% endif %}">
@@ -123,16 +116,6 @@
                             <line x1="16" y1="17" x2="8" y2="17" />
                         </svg>
                         <span>Interview Records</span>
-                    </a>
-                    <a href="{{ url_for('candidates.active_candidates') }}"
-                        class="nav-link {% if request.endpoint == 'candidates.active_candidates' %}active{% endif %}">
-                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                            <circle cx="9" cy="7" r="4" />
-                            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                        </svg>
-                        <span>Active Candidates</span>
                     </a>
                     <a href="{{ url_for('candidates.expert_candidate_activity') }}"
                         class="nav-link {% if request.endpoint == 'candidates.expert_candidate_activity' %}active{% endif %}">

@@ -1,252 +1,473 @@
-
-from flask import Blueprint, render_template, current_app
-from db import get_db
-from datetime import datetime
 from collections import Counter
-from services.reference_data import get_teams_reference
+from datetime import datetime
 
-dashboard_bp = Blueprint('dashboard', __name__)
+from flask import Blueprint, current_app, render_template, request, url_for
 
-@dashboard_bp.route('/')
-def index():
-    """Optimized dashboard with caching and combined queries."""
-    cache = current_app.cache
+from db import get_db, get_teams_db
+from po_security import filter_records_for_po_access, get_current_po_access, po_pin_security_enabled
+from routes.analytics import get_expert_funnel_data, get_team_funnel_data
+from routes.candidates import fetch_expert_activity_data
+from routes.kpi import calculate_kpi_data
+from routes.po import fetch_po_records, get_supabase_client, month_label
 
-    # Cache the entire dashboard data for 5 minutes
-    @cache.memoize(timeout=300)
-    def get_dashboard_data():
-        db = get_db()
+dashboard_bp = Blueprint("dashboard", __name__)
 
-        # Focused queries are faster than a large $facet on this dataset.
-        candidate_status_rows = list(db.candidateDetails.aggregate([
-            {"$group": {"_id": "$workflowStatus", "count": {"$sum": 1}}},
-            {"$sort": {"count": -1}},
-        ]))
-        status_breakdown = {(row.get("_id") or "Unknown"): row["count"] for row in candidate_status_rows}
-        total_candidates = sum(row["count"] for row in candidate_status_rows)
 
-        technology_distribution = [
-            {"name": row["_id"], "count": row["count"]}
-            for row in db.candidateDetails.aggregate([
-                {"$match": {"Technology": {"$nin": [None, ""]}}},
-                {"$group": {"_id": "$Technology", "count": {"$sum": 1}}},
-                {"$sort": {"count": -1}},
-                {"$limit": 10},
-            ])
-        ]
+def display_name(value):
+    text = str(value or "").strip()
+    if not text:
+        return "Unknown"
+    return text.split("@", 1)[0] if "@" in text else text
 
-        branch_distribution = [
-            {"name": row["_id"], "count": row["count"]}
-            for row in db.candidateDetails.aggregate([
-                {"$match": {"Branch": {"$nin": [None, ""]}}},
-                {"$group": {"_id": "$Branch", "count": {"$sum": 1}}},
-                {"$sort": {"count": -1}},
-                {"$limit": 8},
-            ])
-        ]
 
-        recent_candidates = list(db.candidateDetails.find({}, {
-            "_id": 1,
-            "Candidate Name": 1,
-            "Technology": 1,
-            "workflowStatus": 1,
-            "updated_at": 1,
-        }).sort("updated_at", -1).limit(10))
+def get_dashboard_dates():
+    start_date = request.args.get("start_date", "").strip()
+    end_date = request.args.get("end_date", "").strip()
 
-        active_count = status_breakdown.get("active", 0)
-        scheduled_count = status_breakdown.get("scheduled", 0)
-        rejected_count = status_breakdown.get("rejected", 0)
-        completed_count = status_breakdown.get("completed", 0)
-
-        interview_status_rows = list(db.taskBody.aggregate([
-            {"$group": {"_id": "$status", "count": {"$sum": 1}}},
-        ]))
-        interview_status = {row.get("_id") or "Unknown": row["count"] for row in interview_status_rows}
-        total_interviews = sum(row["count"] for row in interview_status_rows)
-        completed_interviews = interview_status.get("Completed", 0)
-        cancelled_interviews = interview_status.get("Cancelled", 0)
-        rescheduled_interviews = interview_status.get("Rescheduled", 0)
-
-        top_experts = [
-            {"name": row["_id"], "count": row["interview_count"]}
-            for row in db.taskBody.aggregate([
-                {"$match": {"status": "Completed", "assignedTo": {"$type": "string", "$ne": ""}}},
-                {"$group": {"_id": "$assignedTo", "interview_count": {"$sum": 1}}},
-                {"$sort": {"interview_count": -1}},
-                {"$limit": 10},
-            ])
-        ]
-
-        ROUND_BUCKETS = {
-            "screening": "Screening",
-            "1st round": "1st",
-            "first round": "1st",
-            "2nd round": "2nd",
-            "second round": "2nd",
-            "3rd round": "3rd/Technical",
-            "third round": "3rd/Technical",
-            "technical": "3rd/Technical",
-            "technical round": "3rd/Technical",
-            "final": "Final",
-            "final round": "Final",
-            "loop round": "Final",
-        }
-
-        def normalize_round(r):
-            if not r:
-                return None
-            key = str(r).strip().lower()
-            return ROUND_BUCKETS.get(key)
-
-        stage_counts = Counter()
-        for row in db.taskBody.aggregate([
-            {
-                "$match": {
-                    "status": "Completed",
-                    "actualRound": {"$nin": ["On demand", "On Demand or AI Interview", None, ""]},
-                }
-            },
-            {"$group": {"_id": "$actualRound", "count": {"$sum": 1}}},
-        ]):
-            stage = normalize_round(row.get("_id"))
-            if stage:
-                stage_counts[stage] += row["count"]
-
-        funnel_stages = {
-            "Screening": stage_counts.get("Screening", 0),
-            "1st": stage_counts.get("1st", 0),
-            "2nd": stage_counts.get("2nd", 0),
-            "3rd/Technical": stage_counts.get("3rd/Technical", 0),
-            "Final": stage_counts.get("Final", 0)
-        }
-
-        def calc_conversion(current, previous):
-            return round((current / previous * 100), 1) if previous > 0 else 0
-
-        funnel_data = {
-            "stages": funnel_stages,
-            "conversions": {
-                "screening_to_1st": calc_conversion(funnel_stages["1st"], funnel_stages["Screening"]),
-                "1st_to_2nd": calc_conversion(funnel_stages["2nd"], funnel_stages["1st"]),
-                "2nd_to_3rd": calc_conversion(funnel_stages["3rd/Technical"], funnel_stages["2nd"]),
-                "3rd_to_final": calc_conversion(funnel_stages["Final"], funnel_stages["3rd/Technical"])
-            }
-        }
-
-        teams_reference = get_teams_reference()
-        teams_map = teams_reference["teams_map"]
-
-        # Build expert -> team mapping
-        expert_to_team = teams_reference["expert_to_team"]
-
-        # Single aggregation for all team members
-        if expert_to_team:
-            team_counts_pipeline = [
-                {"$match": {"status": "Completed", "assignedTo": {"$in": teams_reference["all_experts"]}}},
-                {"$group": {"_id": "$assignedTo", "count": {"$sum": 1}}}
-            ]
-            expert_counts = list(db.taskBody.aggregate(team_counts_pipeline))
-
-            # Roll up to teams
-            team_interview_counts = {team: 0 for team in teams_map.keys()}
-            for expert_count in expert_counts:
-                expert = expert_count["_id"]
-                team = expert_to_team.get(str(expert).lower())
-                if team:
-                    team_interview_counts[team] += expert_count["count"]
-
-            top_teams = sorted(
-                [{"name": k, "count": v} for k, v in team_interview_counts.items()],
-                key=lambda x: x["count"],
-                reverse=True
-            )[:10]
-        else:
-            top_teams = []
-
-        monthly_data = []
+    if not start_date and not end_date:
         today = datetime.now()
-        current_month_start = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        start_date = today.replace(day=1).strftime("%Y-%m-%d")
+        end_date = today.strftime("%Y-%m-%d")
 
-        def shift_month(dt, delta):
-            month_index = (dt.year * 12 + dt.month - 1) + delta
-            year = month_index // 12
-            month = month_index % 12 + 1
-            return dt.replace(year=year, month=month, day=1)
+    return start_date, end_date
 
-        month_starts = [shift_month(current_month_start, offset) for offset in range(-5, 1)]
-        next_month_start = shift_month(current_month_start, 1)
-        first_month_start = month_starts[0]
 
-        candidate_month_counts = {
-            row["_id"]: row["count"]
-            for row in db.candidateDetails.aggregate([
-                {
-                    "$match": {
-                        "updated_at": {"$gte": first_month_start, "$lt": next_month_start}
-                    }
-                },
-                {
-                    "$group": {
-                        "_id": {"$dateToString": {"format": "%Y-%m", "date": "$updated_at"}},
-                        "count": {"$sum": 1}
-                    }
-                }
-            ])
+def build_received_date_filter(start_date="", end_date=""):
+    date_filter = {}
+
+    if start_date:
+        date_filter["$gte"] = (
+            start_date if "T" in start_date else f"{start_date}T00:00:00"
+        )
+    if end_date:
+        date_filter["$lte"] = end_date if "T" in end_date else f"{end_date}T23:59:59"
+
+    return {"receivedDateTime": date_filter} if date_filter else {}
+
+
+def format_period_label(start_date="", end_date=""):
+    if not start_date and not end_date:
+        return "All Time"
+
+    if start_date and end_date:
+        try:
+            start_dt = datetime.strptime(start_date[:10], "%Y-%m-%d")
+            end_dt = datetime.strptime(end_date[:10], "%Y-%m-%d")
+            if start_dt.year == end_dt.year and start_dt.month == end_dt.month:
+                return start_dt.strftime("%B %Y")
+        except ValueError:
+            pass
+        return f"{start_date[:10]} to {end_date[:10]}"
+
+    return (start_date or end_date)[:10]
+
+
+def safe_month_snapshot(date_text):
+    try:
+        return datetime.strptime(date_text[:10], "%Y-%m-%d")
+    except (TypeError, ValueError):
+        return datetime.now()
+
+
+@dashboard_bp.route("/")
+def index():
+    """Dashboard landing page that summarizes the remaining analytics pages."""
+    cache = current_app.cache
+    start_date, end_date = get_dashboard_dates()
+
+    @cache.memoize(timeout=300)
+    def get_dashboard_data(start_date, end_date):
+        db = get_db()
+        teams_db = get_teams_db()
+
+        period_label = format_period_label(start_date, end_date)
+        date_filter = build_received_date_filter(start_date, end_date)
+        month_snapshot = safe_month_snapshot(end_date or start_date)
+        activity_month = month_snapshot.strftime("%b").upper()
+        activity_year = month_snapshot.strftime("%Y")
+        activity_period_label = month_snapshot.strftime("%B %Y")
+
+        expert_stats, _ = get_expert_funnel_data(db, start_date, end_date, None, None)
+        team_stats, _ = get_team_funnel_data(db, start_date, end_date, None, None)
+        kpi_data = calculate_kpi_data(db, start_date, end_date, None, None, None, [])
+        activity_team_data, activity_summary = fetch_expert_activity_data(
+            activity_month,
+            activity_year,
+            "",
+            None,
+            None,
+            False,
+            None,
+        )
+
+        ranked_experts = sorted(
+            expert_stats,
+            key=lambda item: (
+                item.get("interview_count", 0),
+                item.get("screening_to_1st", 0),
+            ),
+            reverse=True,
+        )
+        ranked_teams = sorted(
+            team_stats,
+            key=lambda item: (
+                item.get("interview_count", 0),
+                item.get("screening_to_1st", 0),
+            ),
+            reverse=True,
+        )
+        ranked_kpi = sorted(
+            kpi_data.get("experts", []),
+            key=lambda item: (
+                item.get("match_rate", 0),
+                item.get("total_interviews", 0),
+            ),
+            reverse=True,
+        )
+        ranked_activity_teams = sorted(
+            activity_team_data,
+            key=lambda item: (item.get("active", 0), item.get("total", 0)),
+            reverse=True,
+        )
+
+        interview_match = {
+            **date_filter,
+            "assignedTo": {"$type": "string", "$ne": ""},
+            "actualRound": {"$nin": ["Screening", "On demand", "On Demand or AI Interview"]},
         }
 
-        interview_month_counts = {
-            row["_id"]: row["count"]
-            for row in db.taskBody.aggregate([
-                {
-                    "$match": {
-                        "receivedDateTime": {
-                            "$gte": first_month_start.isoformat(),
-                            "$lt": next_month_start.isoformat()
+        interview_status_rows = list(
+            db.taskBody.aggregate(
+                [
+                    {"$match": interview_match},
+                    {"$group": {"_id": "$status", "count": {"$sum": 1}}},
+                ]
+            )
+        )
+        interview_status_totals = {
+            "Completed": 0,
+            "Cancelled": 0,
+            "Rescheduled": 0,
+            "Not Done": 0,
+        }
+        other_status_total = 0
+        for row in interview_status_rows:
+            status_name = row.get("_id") or "Unknown"
+            if status_name in interview_status_totals:
+                interview_status_totals[status_name] = row["count"]
+            else:
+                other_status_total += row["count"]
+        if other_status_total:
+            interview_status_totals["Other"] = other_status_total
+
+        total_interviews = sum(interview_status_totals.values())
+        completed_interviews = interview_status_totals.get("Completed", 0)
+        interview_completion_rate = (
+            round((completed_interviews / total_interviews) * 100, 1)
+            if total_interviews
+            else 0
+        )
+
+        record_round_rows = list(
+            db.taskBody.aggregate(
+                [
+                    {
+                        "$match": {
+                            **interview_match,
+                            "status": "Completed",
+                            "actualRound": {
+                                "$nin": [
+                                    "Screening",
+                                    "On demand",
+                                    "On Demand or AI Interview",
+                                    None,
+                                    "",
+                                ]
+                            },
                         }
-                    }
-                },
-                {
-                    "$project": {
-                        "_id": 0,
-                        "month": {"$substr": ["$receivedDateTime", 0, 7]}
-                    }
-                },
-                {
-                    "$group": {
-                        "_id": "$month",
-                        "count": {"$sum": 1}
-                    }
-                }
-            ])
-        }
+                    },
+                    {"$group": {"_id": "$actualRound", "count": {"$sum": 1}}},
+                    {"$sort": {"count": -1}},
+                    {"$limit": 8},
+                ]
+            )
+        )
+        record_round_chart = [
+            {"name": row.get("_id") or "Unknown", "count": row["count"]}
+            for row in record_round_rows
+        ]
 
-        for month_start in month_starts:
-            month_key = month_start.strftime("%Y-%m")
-            monthly_data.append({
-                "month": month_start.strftime("%b %Y"),
-                "candidates": candidate_month_counts.get(month_key, 0),
-                "interviews": interview_month_counts.get(month_key, 0)
-            })
+        candidate_focus_rows = list(
+            db.taskBody.aggregate(
+                [
+                    {
+                        "$match": {
+                            **date_filter,
+                            "Candidate Name": {"$type": "string", "$ne": ""},
+                        }
+                    },
+                    {"$group": {"_id": "$Candidate Name", "count": {"$sum": 1}}},
+                    {"$sort": {"count": -1}},
+                    {"$limit": 8},
+                ]
+            )
+        )
+        candidate_focus_chart = [
+            {"name": row.get("_id") or "Unknown", "count": row["count"]}
+            for row in candidate_focus_rows
+        ]
+        top_candidate = candidate_focus_chart[0] if candidate_focus_chart else None
+
+        recent_records_rows = list(
+            db.taskBody.find(
+                {
+                    **date_filter,
+                    "assignedTo": {"$type": "string", "$ne": ""},
+                    "status": "Completed",
+                },
+                {
+                    "_id": 0,
+                    "assignedTo": 1,
+                    "Candidate Name": 1,
+                    "actualRound": 1,
+                    "receivedDateTime": 1,
+                },
+            )
+            .sort("receivedDateTime", -1)
+            .limit(6)
+        )
+        recent_records = [
+            {
+                "expert": display_name(row.get("assignedTo")),
+                "candidate": row.get("Candidate Name") or "Unknown",
+                "round": row.get("actualRound") or "Unknown",
+                "date": (row.get("receivedDateTime") or "")[:10] or "N/A",
+            }
+            for row in recent_records_rows
+        ]
+
+        teams = list(teams_db.teams.find({}, {"_id": 0, "name": 1, "members": 1}))
+        teams_configured = len(teams)
+
+        po_access = get_current_po_access()
+        po_summary = {
+            "state": "locked" if po_pin_security_enabled() and not po_access else "unavailable",
+            "total_records": 0,
+            "unique_candidates": 0,
+            "active_months": 0,
+            "top_team": "",
+            "message": (
+                "Unlock PO access to surface intake insights here."
+                if po_pin_security_enabled() and not po_access
+                else "PO insights are currently unavailable."
+            ),
+        }
+        po_chart = []
+
+        try:
+            if not (po_pin_security_enabled() and not po_access):
+                po_records = filter_records_for_po_access(
+                    fetch_po_records(get_supabase_client()),
+                    po_access,
+                )
+                po_month_counts = Counter(
+                    record.get("month_key")
+                    for record in po_records
+                    if record.get("month_key")
+                )
+                po_team_counts = Counter(
+                    record.get("team_name") or "Unassigned" for record in po_records
+                )
+                po_chart = [
+                    {"name": month_label(month_key), "count": po_month_counts[month_key]}
+                    for month_key in sorted(po_month_counts.keys())[-6:]
+                ]
+                po_summary = {
+                    "state": "ready",
+                    "total_records": len(po_records),
+                    "unique_candidates": len(
+                        {
+                            str(record.get("candidate_name") or "").strip()
+                            for record in po_records
+                            if str(record.get("candidate_name") or "").strip()
+                        }
+                    ),
+                    "active_months": len(po_month_counts),
+                    "top_team": po_team_counts.most_common(1)[0][0] if po_team_counts else "",
+                    "message": "Live PO intake synced from the PO pages.",
+                }
+        except Exception as exc:
+            po_summary = {
+                "state": "unavailable",
+                "total_records": 0,
+                "unique_candidates": 0,
+                "active_months": 0,
+                "top_team": "",
+                "message": str(exc) or "PO insights are currently unavailable.",
+            }
+
+        page_cards = [
+            {
+                "name": "Expert Analytics",
+                "metric": f"{len(ranked_experts)} experts",
+                "description": "Interview load and stage progress by expert.",
+                "href": url_for("analytics.expert_analytics"),
+                "tone": "blue",
+            },
+            {
+                "name": "Team Analytics",
+                "metric": f"{len(ranked_teams)} teams",
+                "description": "Team output and conversion movement.",
+                "href": url_for("analytics.team_analytics"),
+                "tone": "purple",
+            },
+            {
+                "name": "Interview Stats",
+                "metric": f"{total_interviews} interviews",
+                "description": "Status mix across completed, cancelled, and rescheduled work.",
+                "href": url_for("analytics.interview_stats"),
+                "tone": "green",
+            },
+            {
+                "name": "Interview Records",
+                "metric": f"{completed_interviews} completed logs",
+                "description": "Round-level record volume for completed interviews.",
+                "href": url_for("analytics.interview_records"),
+                "tone": "orange",
+            },
+            {
+                "name": "KPI Sidebar",
+                "metric": f"{kpi_data.get('summary', {}).get('avg_match_rate', 0)}% avg match",
+                "description": "First-assignment attribution and match quality.",
+                "href": url_for("kpi.kpi_sidebar"),
+                "tone": "teal",
+            },
+            {
+                "name": "Expert Activity",
+                "metric": f"{activity_summary.get('active_candidates', 0)} active candidates",
+                "description": f"Monthly activity snapshot for {activity_period_label}.",
+                "href": url_for("candidates.expert_candidate_activity"),
+                "tone": "pink",
+            },
+            {
+                "name": "Candidate Lookup",
+                "metric": (
+                    f"{top_candidate['count']} interviews for {top_candidate['name']}"
+                    if top_candidate
+                    else "Candidate drill-down"
+                ),
+                "description": "See who is accumulating the most interview touchpoints.",
+                "href": url_for("candidates.candidate_lookup"),
+                "tone": "cyan",
+            },
+            {
+                "name": "Team Management",
+                "metric": f"{teams_configured} configured teams",
+                "description": "Team structure and member coverage.",
+                "href": url_for("teams.manage"),
+                "tone": "yellow",
+            },
+            {
+                "name": "Export Center",
+                "metric": "Exports ready",
+                "description": "Download the same views surfaced across the dashboard.",
+                "href": url_for("analytics.export_center"),
+                "tone": "blue",
+            },
+            {
+                "name": "PO Dashboard",
+                "metric": (
+                    f"{po_summary['total_records']} records"
+                    if po_summary["state"] == "ready"
+                    else "Locked"
+                    if po_summary["state"] == "locked"
+                    else "Unavailable"
+                ),
+                "description": "PO intake trend and grouped operational view.",
+                "href": url_for("po.po_dashboard"),
+                "tone": "purple",
+            },
+            {
+                "name": "PO Candidate",
+                "metric": (
+                    f"{po_summary['unique_candidates']} candidates"
+                    if po_summary["state"] == "ready"
+                    else "Locked"
+                    if po_summary["state"] == "locked"
+                    else "Unavailable"
+                ),
+                "description": "Candidate-level PO stream grouped by month.",
+                "href": url_for("po.po_candidate_dashboard"),
+                "tone": "teal",
+            },
+        ]
 
         return {
-            "total_candidates": total_candidates,
-            "total_interviews": total_interviews,
-            "completed_interviews": completed_interviews,
-            "cancelled_interviews": cancelled_interviews,
-            "rescheduled_interviews": rescheduled_interviews,
-            "active_count": active_count,
-            "scheduled_count": scheduled_count,
-            "rejected_count": rejected_count,
-            "completed_count": completed_count,
-            "status_breakdown": status_breakdown,
-            "top_experts": top_experts,
-            "top_teams": top_teams,
-            "technology_distribution": technology_distribution,
-            "branch_distribution": branch_distribution,
-            "funnel_data": funnel_data,
-            "recent_candidates": recent_candidates,
-            "monthly_data": monthly_data,
+            "period_label": period_label,
+            "activity_period_label": activity_period_label,
+            "headline": {
+                "experts": len(ranked_experts),
+                "teams": len(ranked_teams),
+                "interviews": total_interviews,
+                "completion_rate": interview_completion_rate,
+                "avg_match_rate": kpi_data.get("summary", {}).get("avg_match_rate", 0),
+                "active_candidates": activity_summary.get("active_candidates", 0),
+                "po_metric": (
+                    po_summary["total_records"]
+                    if po_summary["state"] == "ready"
+                    else "Locked"
+                    if po_summary["state"] == "locked"
+                    else "N/A"
+                ),
+            },
+            "leaders": {
+                "expert": ranked_experts[0] if ranked_experts else None,
+                "team": ranked_teams[0] if ranked_teams else None,
+                "kpi": ranked_kpi[0] if ranked_kpi else None,
+                "activity_team": ranked_activity_teams[0] if ranked_activity_teams else None,
+            },
+            "page_cards": page_cards,
+            "expert_chart": [
+                {
+                    "name": display_name(item.get("expert")),
+                    "count": item.get("interview_count", 0),
+                }
+                for item in ranked_experts[:8]
+            ],
+            "team_chart": [
+                {"name": item.get("team", "Unknown"), "count": item.get("interview_count", 0)}
+                for item in ranked_teams[:8]
+            ],
+            "interview_status_chart": [
+                {"name": name, "count": count}
+                for name, count in interview_status_totals.items()
+                if count > 0
+            ],
+            "record_round_chart": record_round_chart,
+            "kpi_chart": [
+                {
+                    "name": display_name(item.get("expert")),
+                    "count": item.get("match_rate", 0),
+                }
+                for item in ranked_kpi[:8]
+            ],
+            "activity_chart": [
+                {"name": item.get("team", "Unknown"), "count": item.get("active", 0)}
+                for item in ranked_activity_teams[:8]
+            ],
+            "candidate_focus_chart": candidate_focus_chart,
+            "po_chart": po_chart,
+            "po_summary": po_summary,
+            "top_experts": [
+                {
+                    "name": display_name(item.get("expert")),
+                    "count": item.get("interview_count", 0),
+                    "meta": f"{item.get('screening_to_1st', 0)}% screening to 1st",
+                }
+                for item in ranked_experts[:5]
+            ],
+            "recent_records": recent_records,
         }
 
-    data = get_dashboard_data()
+    data = get_dashboard_data(start_date, end_date)
     return render_template("index.html", **data)

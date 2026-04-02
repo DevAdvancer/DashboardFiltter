@@ -6,7 +6,7 @@ from io import BytesIO
 import re
 
 import pandas as pd
-from flask import Blueprint, render_template, request, current_app, send_file, url_for
+from flask import Blueprint, render_template, request, current_app, send_file, url_for, redirect
 from openpyxl.styles import Alignment
 
 from db import get_db, get_teams_db
@@ -222,103 +222,111 @@ def candidate_lookup():
     interview_records = []
 
     if candidate_name:
-        # Run the aggregation pipeline for the candidate
-        pipeline = [
-            {
-                "$match": {
-                    "Candidate Name": candidate_name
+        cache_key = f"candidate-lookup:summary:{candidate_name.lower()}"
+        cache = getattr(current_app, "cache", None)
+        cached = cache.get(cache_key) if cache else None
+
+        if cached is None:
+            pipeline = [
+                {
+                    "$match": {
+                        "Candidate Name": candidate_name
+                    }
+                },
+                {
+                    "$facet": {
+                        "totalInterviews": [
+                            {"$count": "count"}
+                        ],
+                        "byRound": [
+                            {"$group": {"_id": "$actualRound", "count": {"$sum": 1}}},
+                            {"$sort": {"count": -1}}
+                        ],
+                        "byStatus": [
+                            {"$group": {"_id": "$status", "count": {"$sum": 1}}},
+                            {"$sort": {"count": -1}}
+                        ],
+                        "byExpert": [
+                            {"$group": {"_id": "$assignedTo", "count": {"$sum": 1}}},
+                            {"$sort": {"count": -1}}
+                        ],
+                        "timeline": [
+                            {"$sort": {"receivedDateTime": -1}},
+                            {"$limit": 50},
+                            {"$project": {
+                                "subject": 1,
+                                "actualRound": 1,
+                                "status": 1,
+                                "assignedTo": 1,
+                                "receivedDateTime": 1,
+                                "scheduledDateTime": 1
+                            }}
+                        ]
+                    }
                 }
-            },
-            {
-                "$facet": {
-                    # Total number of interview records for this candidate
-                    "totalInterviews": [
-                        {"$count": "count"}
-                    ],
-                    # How many times each round occurred
-                    "byRound": [
-                        {"$group": {"_id": "$actualRound", "count": {"$sum": 1}}},
-                        {"$sort": {"count": -1}}
-                    ],
-                    # How many times each status occurred
-                    "byStatus": [
-                        {"$group": {"_id": "$status", "count": {"$sum": 1}}},
-                        {"$sort": {"count": -1}}
-                    ],
-                    # How many times each expert interviewed
-                    "byExpert": [
-                        {"$group": {"_id": "$assignedTo", "count": {"$sum": 1}}},
-                        {"$sort": {"count": -1}}
-                    ],
-                    # Timeline of interviews (most recent first)
-                    "timeline": [
-                        {"$sort": {"receivedDateTime": -1}},
-                        {"$limit": 50},
-                        {"$project": {
-                            "subject": 1,
-                            "actualRound": 1,
-                            "status": 1,
-                            "assignedTo": 1,
-                            "receivedDateTime": 1,
-                            "scheduledDateTime": 1
-                        }}
-                    ]
+            ]
+
+            results = list(db.taskBody.aggregate(pipeline))
+
+            payload = {
+                "candidate_data": None,
+                "interview_records": [],
+            }
+
+            if results:
+                data = results[0]
+                total = data["totalInterviews"][0]["count"] if data["totalInterviews"] else 0
+
+                by_round = []
+                for r in data["byRound"]:
+                    round_name = r['_id'] if r['_id'] else 'Unknown'
+                    by_round.append({'round': round_name, 'count': r['count']})
+
+                by_status = []
+                completed_count = 0
+                cancelled_count = 0
+                rescheduled_count = 0
+                for s in data["byStatus"]:
+                    status_name = s['_id'] if s['_id'] else 'Unknown'
+                    by_status.append({'status': status_name, 'count': s['count']})
+                    if status_name == 'Completed':
+                        completed_count = s['count']
+                    elif status_name == 'Cancelled':
+                        cancelled_count = s['count']
+                    elif status_name == 'Rescheduled':
+                        rescheduled_count = s['count']
+
+                by_expert = []
+                for e in data["byExpert"]:
+                    expert_name = e['_id'] if e['_id'] else 'Unknown'
+                    by_expert.append({'expert': expert_name, 'count': e['count']})
+
+                interview_records = data["timeline"]
+                completion_rate = round((completed_count / total) * 100, 1) if total > 0 else 0
+
+                payload = {
+                    "candidate_data": {
+                        'name': candidate_name,
+                        'total_interviews': total,
+                        'completed_count': completed_count,
+                        'cancelled_count': cancelled_count,
+                        'rescheduled_count': rescheduled_count,
+                        'completion_rate': completion_rate,
+                        'by_round': by_round,
+                        'by_status': by_status,
+                        'by_expert': by_expert,
+                        'unique_rounds': len(by_round),
+                        'unique_experts': len(by_expert)
+                    },
+                    "interview_records": interview_records,
                 }
-            }
-        ]
 
-        results = list(db.taskBody.aggregate(pipeline))
+            if cache:
+                cache.set(cache_key, payload, timeout=300)
+            cached = payload
 
-        if results:
-            data = results[0]
-            total = data["totalInterviews"][0]["count"] if data["totalInterviews"] else 0
-
-            # Process round data
-            by_round = []
-            for r in data["byRound"]:
-                round_name = r['_id'] if r['_id'] else 'Unknown'
-                by_round.append({'round': round_name, 'count': r['count']})
-
-            # Process status data
-            by_status = []
-            completed_count = 0
-            cancelled_count = 0
-            rescheduled_count = 0
-            for s in data["byStatus"]:
-                status_name = s['_id'] if s['_id'] else 'Unknown'
-                by_status.append({'status': status_name, 'count': s['count']})
-                if status_name == 'Completed':
-                    completed_count = s['count']
-                elif status_name == 'Cancelled':
-                    cancelled_count = s['count']
-                elif status_name == 'Rescheduled':
-                    rescheduled_count = s['count']
-
-            # Process expert data
-            by_expert = []
-            for e in data["byExpert"]:
-                expert_name = e['_id'] if e['_id'] else 'Unknown'
-                by_expert.append({'expert': expert_name, 'count': e['count']})
-
-            # Process timeline
-            interview_records = data["timeline"]
-
-            # Calculate completion rate
-            completion_rate = round((completed_count / total) * 100, 1) if total > 0 else 0
-
-            candidate_data = {
-                'name': candidate_name,
-                'total_interviews': total,
-                'completed_count': completed_count,
-                'cancelled_count': cancelled_count,
-                'rescheduled_count': rescheduled_count,
-                'completion_rate': completion_rate,
-                'by_round': by_round,
-                'by_status': by_status,
-                'by_expert': by_expert,
-                'unique_rounds': len(by_round),
-                'unique_experts': len(by_expert)
-            }
+        candidate_data = cached["candidate_data"]
+        interview_records = cached["interview_records"]
 
     return render_template(
         'candidate_lookup.html',
@@ -887,183 +895,4 @@ def export_expert_activity():
 
 @candidates_bp.route('/active', methods=['GET'])
 def active_candidates():
-    """
-    Active Candidates Dashboard - shows candidates with multiple interviews
-    within a specified time period - OPTIMIZED with caching.
-
-    Filters:
-    - min_interviews: Minimum number of interviews (default: 2, which means > 1)
-    - months: Number of months to look back (default: 3)
-    """
-    cache = current_app.cache
-
-    # Get filter parameters
-    try:
-        min_interviews = int(request.args.get('min_interviews', 2))
-    except ValueError:
-        min_interviews = 2
-
-    try:
-        months = int(request.args.get('months', 1))
-    except ValueError:
-        months = 1
-
-    team_filter = request.args.get('team', '')
-    expert_filter = request.args.get('expert', '')
-
-    # Cache the data with filters as part of the key
-    @cache.memoize(timeout=300)  # Cache for 5 minutes
-    def get_active_candidates_data(min_interviews, months, team_f, expert_f):
-        db = get_db()
-
-        # Calculate date range
-        end_date = datetime.utcnow()
-        start_date = end_date - timedelta(days=months * 30)  # Approximate months
-
-        # Convert to ISO string format for MongoDB query
-        start_date_str = start_date.strftime('%Y-%m-%dT%H:%M:%S')
-        end_date_str = end_date.strftime('%Y-%m-%dT%H:%M:%S')
-
-        match_criteria = {
-            "Candidate Name": {"$type": "string", "$ne": ""},
-            "receivedDateTime": {
-                "$gte": start_date_str,
-                "$lte": end_date_str
-            }
-        }
-
-        # Apply Team/Expert filtering
-        if team_f or expert_f:
-            allowed_experts = set()
-            if team_f:
-                teams_db = get_teams_db()
-                t = teams_db.teams.find_one({"name": team_f})
-                if t:
-                    allowed_experts = {str(m).strip().lower() for m in t.get('members', [])}
-
-            if expert_f:
-                e_lower = expert_f.strip().lower()
-                if team_f:
-                    if e_lower in allowed_experts:
-                        allowed_experts = {e_lower}
-                    else:
-                        allowed_experts = set()
-                else:
-                    allowed_experts = {e_lower}
-
-            expert_filters = [
-                {"Expert": {"$regex": f"^{re.escape(expert)}$", "$options": "i"}}
-                for expert in allowed_experts
-            ]
-            valid_names = db.candidateDetails.distinct(
-                "Candidate Name",
-                {
-                    "Candidate Name": {"$type": "string", "$ne": ""},
-                    "$or": expert_filters or [{"Expert": "__no_match__"}],
-                },
-            )
-            match_criteria["Candidate Name"] = {"$in": valid_names or ["__no_match__"]}
-
-        # OPTIMIZED: Build aggregation pipeline with early filtering and limit
-        pipeline = [
-            {
-                "$match": match_criteria
-            },
-            {
-                "$group": {
-                    "_id": "$Candidate Name",
-                    "totalInterviews": {"$sum": 1},
-                    "completedCount": {
-                        "$sum": {"$cond": [{"$eq": ["$status", "Completed"]}, 1, 0]}
-                    },
-                    "cancelledCount": {
-                        "$sum": {"$cond": [{"$eq": ["$status", "Cancelled"]}, 1, 0]}
-                    },
-                    "rescheduledCount": {
-                        "$sum": {"$cond": [{"$eq": ["$status", "Rescheduled"]}, 1, 0]}
-                    },
-                    "rounds": {"$addToSet": "$actualRound"},
-                    "experts": {"$addToSet": "$assignedTo"},
-                    "lastInterviewDate": {"$max": "$receivedDateTime"},
-                    "firstInterviewDate": {"$min": "$receivedDateTime"}
-                }
-            },
-            {
-                "$match": {
-                    "totalInterviews": {"$gte": min_interviews}
-                }
-            },
-            {
-                "$sort": {"totalInterviews": -1, "lastInterviewDate": -1}
-            },
-            {
-                "$limit": 200  # Reduced limit for better performance
-            }
-        ]
-
-        results = list(db.taskBody.aggregate(pipeline, allowDiskUse=True))
-
-        # Process results
-        active_candidates_list = []
-        for result in results:
-            candidate_name = result['_id']
-            total = result['totalInterviews']
-            completed = result['completedCount']
-            cancelled = result['cancelledCount']
-            rescheduled = result['rescheduledCount']
-
-            # Calculate completion rate
-            completion_rate = round((completed / total) * 100, 1) if total > 0 else 0
-
-            # Filter out None/empty values from rounds and experts
-            rounds = [r for r in result.get('rounds', []) if r]
-            experts = [e for e in result.get('experts', []) if e]
-
-            active_candidates_list.append({
-                'name': candidate_name,
-                'total_interviews': total,
-                'completed': completed,
-                'cancelled': cancelled,
-                'rescheduled': rescheduled,
-                'completion_rate': completion_rate,
-                'unique_rounds': len(rounds),
-                'unique_experts': len(experts),
-                'last_interview': result.get('lastInterviewDate', '')[:10] if result.get('lastInterviewDate') else 'N/A',
-                'first_interview': result.get('firstInterviewDate', '')[:10] if result.get('firstInterviewDate') else 'N/A',
-                'rounds_list': rounds,
-                'experts_list': experts
-            })
-
-        # Calculate summary statistics
-        total_active_candidates = len(active_candidates_list)
-        total_interviews = sum(c['total_interviews'] for c in active_candidates_list)
-        avg_interviews = round(total_interviews / total_active_candidates, 1) if total_active_candidates > 0 else 0
-
-        summary = {
-            'total_candidates': total_active_candidates,
-            'total_interviews': total_interviews,
-            'avg_interviews': avg_interviews,
-            'date_range': f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
-        }
-
-        return active_candidates_list, summary, start_date, end_date
-
-    # Get cached data
-    active_candidates_list, summary, start_date, end_date = get_active_candidates_data(min_interviews, months, team_filter, expert_filter)
-
-    # Get all teams and experts for dropdowns (unfiltered)
-    all_teams, all_experts, _ = get_team_options()
-
-    return render_template(
-        'active_candidates.html',
-        candidates=active_candidates_list,
-        summary=summary,
-        min_interviews=min_interviews,
-        months=months,
-        selected_team=team_filter,
-        selected_expert=expert_filter,
-        all_teams=all_teams,
-        all_experts=all_experts,
-        start_date=start_date.strftime('%Y-%m-%d'),
-        end_date=end_date.strftime('%Y-%m-%d')
-    )
+    return redirect(url_for('dashboard.index'))

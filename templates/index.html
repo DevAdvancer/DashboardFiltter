@@ -1,14 +1,114 @@
 {% extends "base.html" %}
 
-{% block page_title %}Dashboard Overview - MEGA DASHBOARD{% endblock %}
-{% block title %}Dashboard Overview{% endblock %}
+{% block page_title %}Dashboard - MEGA DASHBOARD{% endblock %}
+{% block title %}Dashboard{% endblock %}
 
 {% block content %}
-<div class="overview-dashboard">
-    <!-- Hero Stats Grid -->
-    <div class="hero-stats-grid">
+<div class="overview-dashboard dashboard-shell">
+    <section class="card dashboard-banner">
+        <div class="dashboard-banner-copy">
+            <span class="dashboard-kicker">Command Center</span>
+            <h2>One dashboard for the pages we kept.</h2>
+            <p>
+                Scan expert, team, interview, KPI, candidate, management, and PO signals in one place,
+                then jump straight into the page that owns each insight.
+            </p>
+            <div class="dashboard-banner-badges">
+                <span class="dashboard-chip">Primary period: {{ period_label }}</span>
+                <span class="dashboard-chip">Activity snapshot: {{ activity_period_label }}</span>
+                <span class="dashboard-chip {% if po_summary.state == 'ready' %}is-ready{% elif po_summary.state == 'locked' %}is-warn{% else %}is-muted{% endif %}">
+                    PO:
+                    {% if po_summary.state == 'ready' %}
+                    Live
+                    {% elif po_summary.state == 'locked' %}
+                    Locked
+                    {% else %}
+                    Unavailable
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+    </section>
+
+    <div class="dashboard-stats-grid">
         <div class="hero-stat-card">
             <div class="hero-stat-icon blue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <circle cx="12" cy="8" r="4" />
+                    <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
+                </svg>
+            </div>
+            <div class="hero-stat-content">
+                <span class="hero-stat-value">{{ headline.experts }}</span>
+                <span class="hero-stat-label">Experts Active</span>
+                <span class="hero-stat-sublabel">
+                    {% if top_experts %}
+                    Lead: {{ top_experts[0].name }}
+                    {% else %}
+                    No expert activity in this period
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+
+        <div class="hero-stat-card">
+            <div class="hero-stat-icon purple">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <circle cx="9" cy="7" r="3" />
+                    <circle cx="15" cy="7" r="3" />
+                    <path d="M3 18c0-3 3-5 6-5M15 13c3 0 6 2 6 5" />
+                </svg>
+            </div>
+            <div class="hero-stat-content">
+                <span class="hero-stat-value">{{ headline.teams }}</span>
+                <span class="hero-stat-label">Teams With Activity</span>
+                <span class="hero-stat-sublabel">
+                    {% if leaders.team %}
+                    Top team: {{ leaders.team.team }}
+                    {% else %}
+                    No team activity in this period
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+
+        <div class="hero-stat-card">
+            <div class="hero-stat-icon green">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <rect x="3" y="4" width="18" height="18" rx="2" />
+                    <line x1="8" y1="10" x2="16" y2="10" />
+                    <line x1="8" y1="14" x2="16" y2="14" />
+                </svg>
+            </div>
+            <div class="hero-stat-content">
+                <span class="hero-stat-value">{{ headline.interviews }}</span>
+                <span class="hero-stat-label">Tracked Interviews</span>
+                <span class="hero-stat-sublabel">{{ headline.completion_rate }}% completion rate</span>
+            </div>
+        </div>
+
+        <div class="hero-stat-card">
+            <div class="hero-stat-icon teal">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M3 3v18h18" />
+                    <path d="M7 15l4-4 3 3 5-6" />
+                </svg>
+            </div>
+            <div class="hero-stat-content">
+                <span class="hero-stat-value">{{ headline.avg_match_rate }}%</span>
+                <span class="hero-stat-label">Average Match Rate</span>
+                <span class="hero-stat-sublabel">
+                    {% if leaders.kpi %}
+                    Best KPI lead: {{ leaders.kpi.expert.split('@')[0] }}
+                    {% else %}
+                    KPI data is waiting for completed matches
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+
+        <div class="hero-stat-card">
+            <div class="hero-stat-icon orange">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
                     <circle cx="9" cy="7" r="4" />
@@ -17,387 +117,316 @@
                 </svg>
             </div>
             <div class="hero-stat-content">
-                <span class="hero-stat-value">{{ total_candidates or 0 }}</span>
-                <span class="hero-stat-label">Total Candidates</span>
-                <span class="hero-stat-sublabel">In the system</span>
-            </div>
-        </div>
-
-        <div class="hero-stat-card">
-            <div class="hero-stat-icon purple">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                    <rect x="2" y="7" width="20" height="14" rx="2" />
-                    <path d="M16 3v4M8 3v4M2 11h20" />
-                </svg>
-            </div>
-            <div class="hero-stat-content">
-                <span class="hero-stat-value">{{ total_interviews or 0 }}</span>
-                <span class="hero-stat-label">Total Interviews</span>
-                <span class="hero-stat-sublabel">All-time conducted</span>
-            </div>
-        </div>
-
-        <div class="hero-stat-card">
-            <div class="hero-stat-icon green">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                    <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
-                    <polyline points="22,4 12,14.01 9,11.01" />
-                </svg>
-            </div>
-            <div class="hero-stat-content">
-                <span class="hero-stat-value">{{ completed_interviews or 0 }}</span>
-                <span class="hero-stat-label">Completed</span>
+                <span class="hero-stat-value">{{ headline.active_candidates }}</span>
+                <span class="hero-stat-label">Active Candidate Snapshot</span>
                 <span class="hero-stat-sublabel">
-                    {% set success_rate = ((completed_interviews or 0) / (total_interviews or 1) * 100) | round(1) %}
-                    {{ success_rate }}% success rate
+                    {% if leaders.activity_team %}
+                    Busiest team: {{ leaders.activity_team.team }}
+                    {% else %}
+                    No active candidate snapshot available
+                    {% endif %}
                 </span>
             </div>
         </div>
 
         <div class="hero-stat-card">
-            <div class="hero-stat-icon orange">
+            <div class="hero-stat-icon pink">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                    <polyline points="14,2 14,8 20,8" />
+                    <line x1="8" y1="13" x2="16" y2="13" />
+                    <line x1="8" y1="17" x2="13" y2="17" />
                 </svg>
             </div>
             <div class="hero-stat-content">
-                <span class="hero-stat-value">{{ active_count or 0 }}</span>
-                <span class="hero-stat-label">Active Pipeline</span>
-                <span class="hero-stat-sublabel">Candidates in progress</span>
+                <span class="hero-stat-value">{{ headline.po_metric }}</span>
+                <span class="hero-stat-label">PO Records</span>
+                <span class="hero-stat-sublabel">{{ po_summary.message }}</span>
             </div>
         </div>
     </div>
 
-    <!-- Quick Analytics Links -->
-    <div class="quick-links-section card">
+    <section class="dashboard-insights-grid">
+        <div class="card dashboard-insight-card">
+            <span class="dashboard-insight-label">Top Expert Signal</span>
+            <h4>{{ leaders.expert.expert.split('@')[0] if leaders.expert else 'No expert signal yet' }}</h4>
+            <p class="dashboard-insight-meta">
+                {% if leaders.expert %}
+                {{ leaders.expert.interview_count }} interviews with {{ leaders.expert.screening_to_1st }}% screening-to-1st conversion in the selected period.
+                {% else %}
+                Expand the date range to surface expert performance patterns.
+                {% endif %}
+            </p>
+        </div>
+
+        <div class="card dashboard-insight-card">
+            <span class="dashboard-insight-label">Team To Watch</span>
+            <h4>{{ leaders.team.team if leaders.team else 'No team signal yet' }}</h4>
+            <p class="dashboard-insight-meta">
+                {% if leaders.team %}
+                {{ leaders.team.interview_count }} interviews across {{ leaders.team.member_count }} members, with {{ leaders.team.final }} final-round handoffs.
+                {% else %}
+                Team insights will appear here once filtered activity is available.
+                {% endif %}
+            </p>
+        </div>
+
+        <div class="card dashboard-insight-card">
+            <span class="dashboard-insight-label">Recent Delivery Pulse</span>
+            <h4>{{ recent_records[0].candidate if recent_records else headline.completion_rate ~ '% completion' }}</h4>
+            <p class="dashboard-insight-meta">
+                {% if recent_records %}
+                {{ recent_records[0].expert }} completed a {{ recent_records[0].round }} interview on {{ recent_records[0].date }}.
+                {% else %}
+                No recent completed records are available for this period, so the completion rate is carrying the signal.
+                {% endif %}
+            </p>
+        </div>
+    </section>
+
+    <section class="card quick-links-section">
         <div class="card-header">
             <h3 class="card-title">
                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                    <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-                    <polyline points="9,22 9,12 15,12 15,22" />
+                    <path d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
-                Quick Access to Analytics
+                Pages We Kept
             </h3>
         </div>
-        <div class="quick-links-grid">
-            <a href="{{ url_for('analytics.expert_analytics') }}" class="quick-link-card" aria-label="Expert Analytics">
-                <div class="quick-link-icon blue">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <div class="dashboard-pages-grid">
+            {% for page in page_cards %}
+            <a href="{{ page.href }}" class="quick-link-card dashboard-page-card tone-{{ page.tone }}">
+                <span class="dashboard-page-metric">{{ page.metric }}</span>
+                <h4>{{ page.name }}</h4>
+                <p>{{ page.description }}</p>
+                <span class="dashboard-page-arrow">Open Page</span>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+
+    <div class="dashboard-grid-two">
+        <section class="chart-card card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
                         <circle cx="12" cy="8" r="4" />
                         <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
                     </svg>
-                </div>
-                <div class="quick-link-content">
-                    <h4>Expert Analytics</h4>
-                    <p>Performance & funnel insights</p>
-                </div>
-            </a>
+                    Expert Analytics Snapshot
+                </h3>
+                <a href="{{ url_for('analytics.expert_analytics') }}" class="btn btn-ghost btn-sm">Open</a>
+            </div>
+            {% if expert_chart %}
+            <div class="chart-container tall">
+                <canvas id="expertChart" aria-label="Expert analytics chart"></canvas>
+            </div>
+            {% else %}
+            <div class="dashboard-empty-note">No expert analytics data is available for this period.</div>
+            {% endif %}
+        </section>
 
-            <a href="{{ url_for('analytics.team_analytics') }}" class="quick-link-card" aria-label="Team Analytics">
-                <div class="quick-link-icon purple">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <section class="chart-card card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
                         <circle cx="9" cy="7" r="3" />
                         <circle cx="15" cy="7" r="3" />
                         <path d="M3 18c0-3 3-5 6-5M15 13c3 0 6 2 6 5" />
                     </svg>
-                </div>
-                <div class="quick-link-content">
-                    <h4>Team Analytics</h4>
-                    <p>Team performance metrics</p>
-                </div>
-            </a>
-
-            <a href="{{ url_for('analytics.funnel_analytics') }}" class="quick-link-card" aria-label="Funnel Analytics">
-                <div class="quick-link-icon teal">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                        <path d="M3 4h18l-6 8v6l-6 2V12L3 4z" />
-                    </svg>
-                </div>
-                <div class="quick-link-content">
-                    <h4>Funnel Analytics</h4>
-                    <p>Conversion & drop-off rates</p>
-                </div>
-            </a>
-
-            <a href="{{ url_for('analytics.interview_records') }}" class="quick-link-card" aria-label="Interview Records">
-                <div class="quick-link-icon orange">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                        <polyline points="14,2 14,8 20,8" />
-                    </svg>
-                </div>
-                <div class="quick-link-content">
-                    <h4>Interview Records</h4>
-                    <p>Detailed interview logs</p>
-                </div>
-            </a>
-        </div>
+                    Team Analytics Snapshot
+                </h3>
+                <a href="{{ url_for('analytics.team_analytics') }}" class="btn btn-ghost btn-sm">Open</a>
+            </div>
+            {% if team_chart %}
+            <div class="chart-container tall">
+                <canvas id="teamChart" aria-label="Team analytics chart"></canvas>
+            </div>
+            {% else %}
+            <div class="dashboard-empty-note">No team analytics data is available for this period.</div>
+            {% endif %}
+        </section>
     </div>
 
-    <!-- Charts Row 1 -->
-    <div class="charts-row-overview">
-        <!-- Status Distribution -->
-        <div class="chart-card card">
-            <div class="card-header">
-                <h3 class="card-title">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                        <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
-                        <path d="M22 12A10 10 0 0 0 12 2v10z" />
-                    </svg>
-                    Candidate Status Distribution
-                </h3>
-            </div>
-            <div class="chart-container">
-                <canvas id="statusChart" aria-label="Candidate status distribution chart"></canvas>
-            </div>
-        </div>
-
-        <!-- Interview Status -->
-        <div class="chart-card card">
+    <div class="dashboard-grid-two">
+        <section class="chart-card card">
             <div class="card-header">
                 <h3 class="card-title">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
                         <circle cx="12" cy="12" r="10" />
                         <polyline points="12,6 12,12 16,14" />
                     </svg>
-                    Interview Status Breakdown
+                    Interview Stats
                 </h3>
+                <a href="{{ url_for('analytics.interview_stats') }}" class="btn btn-ghost btn-sm">Open</a>
             </div>
+            {% if interview_status_chart %}
             <div class="chart-container">
-                <canvas id="interviewStatusChart" aria-label="Interview status breakdown chart"></canvas>
-            </div>
-        </div>
-
-        <!-- Technology Distribution -->
-        <div class="chart-card card">
-            <div class="card-header">
-                <h3 class="card-title">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                        <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                        <path d="M2 17l10 5 10-5M2 12l10 5 10-5" />
-                    </svg>
-                    Top Technologies
-                </h3>
-            </div>
-            <div class="chart-container">
-                <canvas id="techChart" aria-label="Technology distribution chart"></canvas>
-            </div>
-        </div>
-    </div>
-
-    <!-- Funnel Overview Section -->
-    <div class="funnel-overview-section card">
-        <div class="card-header">
-            <h3 class="card-title">
-                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                    <path d="M3 4h18l-6 8v6l-6 2V12L3 4z" />
-                </svg>
-                Interview Funnel Overview
-            </h3>
-            <a href="{{ url_for('analytics.funnel_analytics') }}" class="btn btn-ghost btn-sm">View Details</a>
-        </div>
-        <div class="funnel-visual-dashboard">
-            {% set screening_count = funnel_data.stages.Screening|default(0, true) %}
-            
-            <div class="funnel-stage-dash">
-                <div class="funnel-bar-dash screening" style="width: 100%;">
-                    <span class="funnel-label">Screening</span>
-                    <span class="funnel-count">{{ screening_count }}</span>
-                </div>
-                <span class="funnel-percent-dash">100%</span>
-            </div>
-            
-            {% if screening_count > 0 %}
-            <div class="funnel-arrow-dash">
-                <span class="conversion-badge">{{ funnel_data.conversions.screening_to_1st|default(0, true) }}%</span>
-            </div>
-            
-            {% set first_count = funnel_data.stages['1st']|default(0, true) %}
-            {% set first_pct = (first_count / screening_count * 100) | round(1) %}
-            <div class="funnel-stage-dash">
-                <div class="funnel-bar-dash first" style="width: {{ first_pct }}%;">
-                    <span class="funnel-label">1st Round</span>
-                    <span class="funnel-count">{{ first_count }}</span>
-                </div>
-                <span class="funnel-percent-dash">{{ first_pct }}%</span>
-            </div>
-            
-            {% if first_count > 0 %}
-            <div class="funnel-arrow-dash">
-                <span class="conversion-badge">{{ funnel_data.conversions['1st_to_2nd']|default(0, true) }}%</span>
-            </div>
-            
-            {% set second_count = funnel_data.stages['2nd']|default(0, true) %}
-            {% set second_pct = (second_count / screening_count * 100) | round(1) %}
-            <div class="funnel-stage-dash">
-                <div class="funnel-bar-dash second" style="width: {{ second_pct }}%;">
-                    <span class="funnel-label">2nd Round</span>
-                    <span class="funnel-count">{{ second_count }}</span>
-                </div>
-                <span class="funnel-percent-dash">{{ second_pct }}%</span>
-            </div>
-            
-            {% if second_count > 0 %}
-            <div class="funnel-arrow-dash">
-                <span class="conversion-badge">{{ funnel_data.conversions['2nd_to_3rd']|default(0, true) }}%</span>
-            </div>
-            
-            {% set third_count = funnel_data.stages['3rd/Technical']|default(0, true) %}
-            {% set third_pct = (third_count / screening_count * 100) | round(1) %}
-            <div class="funnel-stage-dash">
-                <div class="funnel-bar-dash third" style="width: {{ third_pct }}%;">
-                    <span class="funnel-label">3rd/Technical</span>
-                    <span class="funnel-count">{{ third_count }}</span>
-                </div>
-                <span class="funnel-percent-dash">{{ third_pct }}%</span>
-            </div>
-            
-            {% if third_count > 0 %}
-            <div class="funnel-arrow-dash">
-                <span class="conversion-badge">{{ funnel_data.conversions['3rd_to_final']|default(0, true) }}%</span>
-            </div>
-            
-            {% set final_count = funnel_data.stages.Final|default(0, true) %}
-            {% set final_pct = (final_count / screening_count * 100) | round(1) %}
-            <div class="funnel-stage-dash">
-                <div class="funnel-bar-dash final" style="width: {{ final_pct }}%;">
-                    <span class="funnel-label">Final</span>
-                    <span class="funnel-count">{{ final_count }}</span>
-                </div>
-                <span class="funnel-percent-dash">{{ final_pct }}%</span>
-            </div>
-            {% endif %}
-            {% endif %}
-            {% endif %}
-            {% endif %}
-        </div>
-    </div>
-
-    <!-- Leaderboards Row -->
-    <div class="leaderboards-row">
-        <!-- Top Experts -->
-        <div class="leaderboard-card card">
-            <div class="card-header">
-                <h3 class="card-title">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                        <path d="M12 2L9 9l-7 1 5.5 5L6 22l6-3.5L18 22l-1.5-7 5.5-5-7-1z" />
-                    </svg>
-                    Top Experts
-                </h3>
-                <a href="{{ url_for('analytics.expert_analytics') }}" class="btn btn-ghost btn-sm">View All</a>
-            </div>
-            <div class="leaderboard-list">
-                {% for expert in top_experts[:5] if top_experts %}
-                <div class="leaderboard-item">
-                    <div class="leaderboard-rank">{{ loop.index }}</div>
-                    <div class="leaderboard-avatar">{{ (expert.name or 'U')[0]|upper }}</div>
-                    <div class="leaderboard-info">
-                        <span class="leaderboard-name">{{ expert.name or 'Unknown' }}</span>
-                        <span class="leaderboard-meta">{{ expert.count or 0 }} interviews</span>
-                    </div>
-                    <div class="leaderboard-badge">{{ expert.count or 0 }}</div>
-                </div>
-                {% else %}
-                <div class="leaderboard-item">
-                    <div class="leaderboard-info">
-                        <span class="leaderboard-name">No data available</span>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-
-        <!-- Top Teams -->
-        <div class="leaderboard-card card">
-            <div class="card-header">
-                <h3 class="card-title">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                        <path d="M12 2L9 9l-7 1 5.5 5L6 22l6-3.5L18 22l-1.5-7 5.5-5-7-1z" />
-                    </svg>
-                    Top Teams
-                </h3>
-                <a href="{{ url_for('analytics.team_analytics') }}" class="btn btn-ghost btn-sm">View All</a>
-            </div>
-            <div class="leaderboard-list">
-                {% for team in top_teams[:5] if top_teams %}
-                <div class="leaderboard-item">
-                    <div class="leaderboard-rank">{{ loop.index }}</div>
-                    <div class="leaderboard-team-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                            <circle cx="9" cy="7" r="3" />
-                            <circle cx="15" cy="7" r="3" />
-                            <path d="M3 18c0-3 3-5 6-5M15 13c3 0 6 2 6 5" />
-                        </svg>
-                    </div>
-                    <div class="leaderboard-info">
-                        <span class="leaderboard-name">{{ team.name or 'Unknown' }}</span>
-                        <span class="leaderboard-meta">{{ team.count or 0 }} interviews</span>
-                    </div>
-                    <div class="leaderboard-badge">{{ team.count or 0 }}</div>
-                </div>
-                {% else %}
-                <div class="leaderboard-item">
-                    <div class="leaderboard-info">
-                        <span class="leaderboard-name">No data available</span>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-    </div>
-
-    <!-- Monthly Trend Chart -->
-    <div class="chart-card card trend-card">
-        <div class="card-header">
-            <h3 class="card-title">
-                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                    <polyline points="23,6 13.5,15.5 8.5,10.5 1,18" />
-                    <polyline points="17,6 23,6 23,12" />
-                </svg>
-                Activity Trend (Last 6 Months)
-            </h3>
-        </div>
-        <div class="chart-container tall">
-            <canvas id="trendChart" aria-label="Activity trend chart"></canvas>
-        </div>
-    </div>
-
-    <!-- Recent Activity -->
-    <div class="recent-activity-card card">
-        <div class="card-header">
-            <h3 class="card-title">
-                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                    <circle cx="12" cy="12" r="10" />
-                    <polyline points="12,6 12,12 16,14" />
-                </svg>
-                Recent Candidate Activity
-            </h3>
-        </div>
-        <div class="activity-list">
-            {% for candidate in recent_candidates[:10] if recent_candidates %}
-            <div class="activity-item">
-                <div class="activity-avatar">{{ (candidate.get('Candidate Name') or 'U')[0]|upper }}</div>
-                <div class="activity-info">
-                    <span class="activity-name">{{ candidate.get('Candidate Name') or 'Unknown' }}</span>
-                    <span class="activity-meta">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" aria-hidden="true">
-                            <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                        </svg>
-                        {{ candidate.get('Technology') or 'N/A' }}
-                    </span>
-                </div>
-                <span class="status-pill status-{{ (candidate.get('workflowStatus') or 'unknown')|lower|replace(' ', '_') }}">
-                    {{ candidate.get('workflowStatus') or 'Unknown' }}
-                </span>
+                <canvas id="interviewStatusChart" aria-label="Interview status chart"></canvas>
             </div>
             {% else %}
-            <div class="activity-item">
-                <div class="activity-info">
-                    <span class="activity-name">No recent activity</span>
-                </div>
+            <div class="dashboard-empty-note">No interview status data is available for this period.</div>
+            {% endif %}
+        </section>
+
+        <section class="chart-card card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                        <path d="M4 5h16M4 12h16M4 19h10" />
+                    </svg>
+                    Interview Records by Round
+                </h3>
+                <a href="{{ url_for('analytics.interview_records') }}" class="btn btn-ghost btn-sm">Open</a>
             </div>
-            {% endfor %}
-        </div>
+            {% if record_round_chart %}
+            <div class="chart-container tall">
+                <canvas id="recordRoundChart" aria-label="Interview records by round chart"></canvas>
+            </div>
+            {% else %}
+            <div class="dashboard-empty-note">No completed interview records are available for this period.</div>
+            {% endif %}
+        </section>
+    </div>
+
+    <div class="dashboard-grid-two">
+        <section class="chart-card card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                        <path d="M3 3v18h18" />
+                        <path d="M7 15l4-4 3 3 5-6" />
+                    </svg>
+                    KPI Sidebar Match Rates
+                </h3>
+                <a href="{{ url_for('kpi.kpi_sidebar') }}" class="btn btn-ghost btn-sm">Open</a>
+            </div>
+            {% if kpi_chart %}
+            <div class="chart-container tall">
+                <canvas id="kpiChart" aria-label="KPI match rate chart"></canvas>
+            </div>
+            {% else %}
+            <div class="dashboard-empty-note">No KPI match-rate data is available for this period.</div>
+            {% endif %}
+        </section>
+
+        <section class="chart-card card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+                        <circle cx="9" cy="7" r="4" />
+                        <path d="M23 21v-2a4 4 0 00-3-3.87" />
+                    </svg>
+                    Expert Activity by Team
+                </h3>
+                <a href="{{ url_for('candidates.expert_candidate_activity') }}" class="btn btn-ghost btn-sm">Open</a>
+            </div>
+            {% if activity_chart %}
+            <div class="chart-container tall">
+                <canvas id="activityChart" aria-label="Expert activity chart"></canvas>
+            </div>
+            {% else %}
+            <div class="dashboard-empty-note">No expert activity snapshot is available for {{ activity_period_label }}.</div>
+            {% endif %}
+        </section>
+    </div>
+
+    <div class="dashboard-grid-two">
+        <section class="chart-card card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                        <circle cx="11" cy="11" r="7" />
+                        <path d="m21 21-4.35-4.35" />
+                    </svg>
+                    Candidate Lookup Focus
+                </h3>
+                <a href="{{ url_for('candidates.candidate_lookup') }}" class="btn btn-ghost btn-sm">Open</a>
+            </div>
+            {% if candidate_focus_chart %}
+            <div class="chart-container tall">
+                <canvas id="candidateFocusChart" aria-label="Candidate lookup focus chart"></canvas>
+            </div>
+            {% else %}
+            <div class="dashboard-empty-note">No candidate lookup highlights are available for this period.</div>
+            {% endif %}
+        </section>
+
+        <section class="chart-card card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                        <polyline points="14,2 14,8 20,8" />
+                        <line x1="8" y1="13" x2="16" y2="13" />
+                    </svg>
+                    PO Intake Trend
+                </h3>
+                <a href="{{ url_for('po.po_dashboard') }}" class="btn btn-ghost btn-sm">Open</a>
+            </div>
+            {% if po_chart %}
+            <div class="chart-container tall">
+                <canvas id="poChart" aria-label="PO intake trend chart"></canvas>
+            </div>
+            {% else %}
+            <div class="dashboard-empty-note">{{ po_summary.message }}</div>
+            {% endif %}
+        </section>
+    </div>
+
+    <div class="leaderboards-row">
+        <section class="leaderboard-card card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                        <path d="M12 2L9 9l-7 1 5.5 5L6 22l6-3.5L18 22l-1.5-7 5.5-5-7-1z" />
+                    </svg>
+                    Expert Leaders
+                </h3>
+            </div>
+            <div class="leaderboard-list">
+                {% for expert in top_experts %}
+                <div class="leaderboard-item">
+                    <div class="leaderboard-rank">{{ loop.index }}</div>
+                    <div class="leaderboard-avatar">{{ expert.name[0]|upper }}</div>
+                    <div class="leaderboard-info">
+                        <span class="leaderboard-name">{{ expert.name }}</span>
+                        <span class="leaderboard-meta">{{ expert.meta }}</span>
+                    </div>
+                    <div class="leaderboard-badge">{{ expert.count }}</div>
+                </div>
+                {% else %}
+                <div class="dashboard-empty-note compact">No expert leaders are available for this period.</div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="recent-activity-card card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10" />
+                        <polyline points="12,6 12,12 16,14" />
+                    </svg>
+                    Recent Completed Records
+                </h3>
+            </div>
+            <div class="activity-list">
+                {% for record in recent_records %}
+                <div class="activity-item">
+                    <div class="activity-avatar">{{ record.expert[0]|upper }}</div>
+                    <div class="activity-info">
+                        <span class="activity-name">{{ record.candidate }}</span>
+                        <span class="activity-meta">{{ record.expert }} - {{ record.round }}</span>
+                    </div>
+                    <span class="status-pill status-completed">{{ record.date }}</span>
+                </div>
+                {% else %}
+                <div class="dashboard-empty-note compact">No completed interview records are available for this period.</div>
+                {% endfor %}
+            </div>
+        </section>
     </div>
 </div>
 {% endblock %}
@@ -408,69 +437,118 @@
 
 {% block scripts %}
 <script>
-    // Chart.js Dark Theme Defaults
     Chart.defaults.color = '#94a3b8';
     Chart.defaults.borderColor = '#2a2a3a';
     Chart.defaults.plugins.legend.labels.usePointStyle = true;
-    Chart.defaults.plugins.legend.labels.padding = 16;
+    Chart.defaults.plugins.legend.labels.padding = 14;
     Chart.defaults.plugins.tooltip.backgroundColor = '#1a1a24';
-    Chart.defaults.plugins.tooltip.titleColor = '#f1f5f9';
-    Chart.defaults.plugins.tooltip.bodyColor = '#94a3b8';
-    Chart.defaults.plugins.tooltip.borderColor = '#2a2a3a';
+    Chart.defaults.plugins.tooltip.titleColor = '#f8fafc';
+    Chart.defaults.plugins.tooltip.bodyColor = '#cbd5e1';
+    Chart.defaults.plugins.tooltip.borderColor = '#334155';
     Chart.defaults.plugins.tooltip.borderWidth = 1;
     Chart.defaults.plugins.tooltip.cornerRadius = 10;
     Chart.defaults.plugins.tooltip.padding = 12;
 
-    // Helper function to safely get canvas context
     function getChartContext(id) {
         const canvas = document.getElementById(id);
-        if (!canvas) {
-            console.warn(`Canvas with id '${id}' not found`);
-            return null;
-        }
-        return canvas.getContext('2d');
+        return canvas ? canvas.getContext('2d') : null;
     }
 
-    // 1. Candidate Status Distribution
-    const statusCtx = getChartContext('statusChart');
-    if (statusCtx) {
-        const statusData = {{ status_breakdown|tojson|default('{}', true) }};
-        const statusLabels = Object.keys(statusData);
-        const statusValues = Object.values(statusData);
-        const statusTotal = statusValues.reduce((a, b) => a + b, 0);
+    function truncateLabel(value, maxLength) {
+        if (!value || value.length <= maxLength) {
+            return value;
+        }
+        return value.slice(0, maxLength - 3) + '...';
+    }
 
-        new Chart(statusCtx, {
-            type: 'doughnut',
+    function buildHorizontalBarChart(id, chartData, label, colorConfig, suffix = '', maxValue = null) {
+        const ctx = getChartContext(id);
+        if (!ctx || !chartData.length) return;
+
+        new Chart(ctx, {
+            type: 'bar',
             data: {
-                labels: statusLabels,
+                labels: chartData.map(item => truncateLabel(item.name, 18)),
                 datasets: [{
-                    data: statusValues,
-                    backgroundColor: [
-                        'rgba(16, 185, 129, 0.8)',
-                        'rgba(59, 130, 246, 0.8)',
-                        'rgba(245, 158, 11, 0.8)',
-                        'rgba(239, 68, 68, 0.8)',
-                        'rgba(168, 85, 247, 0.8)',
-                        'rgba(100, 116, 139, 0.8)'
-                    ],
-                    borderColor: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#a855f7', '#64748b'],
+                    label,
+                    data: chartData.map(item => item.count),
+                    backgroundColor: colorConfig.background,
+                    borderColor: colorConfig.border,
                     borderWidth: 2,
-                    hoverBorderWidth: 3,
-                    hoverOffset: 10
+                    borderRadius: 12,
+                    maxBarThickness: 24
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            title: (items) => chartData[items[0].dataIndex]?.name || '',
+                            label: (ctx) => `${label}: ${ctx.raw}${suffix}`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        max: maxValue || undefined,
+                        grid: { color: 'rgba(42, 42, 58, 0.35)' },
+                        ticks: {
+                            callback: (value) => `${value}${suffix}`
+                        }
+                    },
+                    y: {
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+    }
+
+    function buildVerticalBarChart(id, chartData, label, colorConfig, suffix = '', maxValue = null) {
+        const ctx = getChartContext(id);
+        if (!ctx || !chartData.length) return;
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: chartData.map(item => truncateLabel(item.name, 12)),
+                datasets: [{
+                    label,
+                    data: chartData.map(item => item.count),
+                    backgroundColor: colorConfig.background,
+                    borderColor: colorConfig.border,
+                    borderWidth: 2,
+                    borderRadius: 10,
+                    maxBarThickness: 42
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                cutout: '65%',
                 plugins: {
-                    legend: { position: 'bottom' },
+                    legend: { display: false },
                     tooltip: {
                         callbacks: {
-                            label: (ctx) => {
-                                const pct = statusTotal > 0 ? ((ctx.raw / statusTotal) * 100).toFixed(1) : '0.0';
-                                return `${ctx.label}: ${ctx.raw} (${pct}%)`;
-                            }
+                            title: (items) => chartData[items[0].dataIndex]?.name || '',
+                            label: (ctx) => `${label}: ${ctx.raw}${suffix}`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        max: maxValue || undefined,
+                        grid: { color: 'rgba(42, 42, 58, 0.35)' },
+                        ticks: {
+                            callback: (value) => `${value}${suffix}`
                         }
                     }
                 }
@@ -478,43 +556,40 @@
         });
     }
 
-    // 2. Interview Status Breakdown
-    const interviewCtx = getChartContext('interviewStatusChart');
-    if (interviewCtx) {
-        const totalInterviews = {{ total_interviews|default(0, true) }};
-        new Chart(interviewCtx, {
+    function buildDoughnutChart(id, chartData) {
+        const ctx = getChartContext(id);
+        if (!ctx || !chartData.length) return;
+
+        const palette = [
+            { background: 'rgba(16, 185, 129, 0.8)', border: '#10b981' },
+            { background: 'rgba(239, 68, 68, 0.8)', border: '#ef4444' },
+            { background: 'rgba(245, 158, 11, 0.8)', border: '#f59e0b' },
+            { background: 'rgba(59, 130, 246, 0.8)', border: '#3b82f6' },
+            { background: 'rgba(168, 85, 247, 0.8)', border: '#a855f7' }
+        ];
+        const total = chartData.reduce((sum, item) => sum + item.count, 0);
+
+        new Chart(ctx, {
             type: 'doughnut',
             data: {
-                labels: ['Completed', 'Cancelled', 'Rescheduled', 'Other'],
+                labels: chartData.map(item => item.name),
                 datasets: [{
-                    data: [
-                        {{ completed_interviews|default(0, true) }},
-                        {{ cancelled_interviews|default(0, true) }},
-                        {{ rescheduled_interviews|default(0, true) }},
-                        {{ (total_interviews - completed_interviews - cancelled_interviews - rescheduled_interviews)|default(0, true) }}
-                    ],
-                    backgroundColor: [
-                        'rgba(16, 185, 129, 0.8)',
-                        'rgba(239, 68, 68, 0.8)',
-                        'rgba(245, 158, 11, 0.8)',
-                        'rgba(100, 116, 139, 0.8)'
-                    ],
-                    borderColor: ['#10b981', '#ef4444', '#f59e0b', '#64748b'],
+                    data: chartData.map(item => item.count),
+                    backgroundColor: chartData.map((_, index) => palette[index % palette.length].background),
+                    borderColor: chartData.map((_, index) => palette[index % palette.length].border),
                     borderWidth: 2,
-                    hoverBorderWidth: 3,
-                    hoverOffset: 10
+                    hoverOffset: 8
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                cutout: '65%',
+                cutout: '62%',
                 plugins: {
                     legend: { position: 'bottom' },
                     tooltip: {
                         callbacks: {
-                            label: function (ctx) {
-                                const total = {{ total_interviews|default(0, true) }};
+                            label: (ctx) => {
                                 const pct = total > 0 ? ((ctx.raw / total) * 100).toFixed(1) : '0.0';
                                 return `${ctx.label}: ${ctx.raw} (${pct}%)`;
                             }
@@ -525,22 +600,31 @@
         });
     }
 
-    // 3. Technology Distribution
-    const techCtx = getChartContext('techChart');
-    if (techCtx) {
-        const techData = {{ technology_distribution|tojson|default('[]', true) }};
-        new Chart(techCtx, {
-            type: 'bar',
+    function buildLineChart(id, chartData, label, colorConfig) {
+        const ctx = getChartContext(id);
+        if (!ctx || !chartData.length) return;
+
+        const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+        gradient.addColorStop(0, colorConfig.gradientTop);
+        gradient.addColorStop(1, colorConfig.gradientBottom);
+
+        new Chart(ctx, {
+            type: 'line',
             data: {
-                labels: techData.map(t => t.name),
+                labels: chartData.map(item => item.name),
                 datasets: [{
-                    label: 'Candidates',
-                    data: techData.map(t => t.count),
-                    backgroundColor: 'rgba(168, 85, 247, 0.8)',
-                    borderColor: '#a855f7',
-                    borderWidth: 2,
-                    borderRadius: 8,
-                    hoverBackgroundColor: 'rgba(168, 85, 247, 1)'
+                    label,
+                    data: chartData.map(item => item.count),
+                    borderColor: colorConfig.border,
+                    backgroundColor: gradient,
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.35,
+                    pointRadius: 5,
+                    pointHoverRadius: 8,
+                    pointBackgroundColor: colorConfig.border,
+                    pointBorderColor: '#16161e',
+                    pointBorderWidth: 2
                 }]
             },
             options: {
@@ -550,96 +634,68 @@
                     legend: { display: false },
                     tooltip: {
                         callbacks: {
-                            label: (ctx) => `Count: ${ctx.raw}`
+                            label: (ctx) => `${label}: ${ctx.raw}`
                         }
                     }
                 },
                 scales: {
                     x: {
-                        grid: { display: false },
-                        ticks: { font: { size: 11 } }
+                        grid: { color: 'rgba(42, 42, 58, 0.25)' }
                     },
                     y: {
-                        grid: { color: 'rgba(42, 42, 58, 0.5)' },
-                        ticks: { font: { size: 11 } }
+                        beginAtZero: true,
+                        grid: { color: 'rgba(42, 42, 58, 0.35)' }
                     }
                 }
             }
         });
     }
 
-    // 4. Monthly Trend
-    const trendCtx = getChartContext('trendChart');
-    if (trendCtx) {
-        const monthlyData = {{ monthly_data|tojson|default('[]', true) }};
-        
-        const gradient1 = trendCtx.createLinearGradient(0, 0, 0, 300);
-        gradient1.addColorStop(0, 'rgba(59, 130, 246, 0.5)');
-        gradient1.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
+    const expertData = {{ expert_chart|tojson|default('[]', true) }};
+    const teamData = {{ team_chart|tojson|default('[]', true) }};
+    const interviewStatusData = {{ interview_status_chart|tojson|default('[]', true) }};
+    const recordRoundData = {{ record_round_chart|tojson|default('[]', true) }};
+    const kpiData = {{ kpi_chart|tojson|default('[]', true) }};
+    const activityData = {{ activity_chart|tojson|default('[]', true) }};
+    const candidateFocusData = {{ candidate_focus_chart|tojson|default('[]', true) }};
+    const poData = {{ po_chart|tojson|default('[]', true) }};
 
-        const gradient2 = trendCtx.createLinearGradient(0, 0, 0, 300);
-        gradient2.addColorStop(0, 'rgba(16, 185, 129, 0.5)');
-        gradient2.addColorStop(1, 'rgba(16, 185, 129, 0.0)');
+    buildHorizontalBarChart('expertChart', expertData, 'Interviews', {
+        background: 'rgba(59, 130, 246, 0.75)',
+        border: '#3b82f6'
+    });
 
-        new Chart(trendCtx, {
-            type: 'line',
-            data: {
-                labels: monthlyData.map(m => m.month),
-                datasets: [
-                    {
-                        label: 'Candidates',
-                        data: monthlyData.map(m => m.candidates),
-                        borderColor: '#3b82f6',
-                        backgroundColor: gradient1,
-                        borderWidth: 3,
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 6,
-                        pointHoverRadius: 10,
-                        pointBackgroundColor: '#3b82f6',
-                        pointBorderColor: '#16161e',
-                        pointBorderWidth: 2
-                    },
-                    {
-                        label: 'Interviews',
-                        data: monthlyData.map(m => m.interviews),
-                        borderColor: '#10b981',
-                        backgroundColor: gradient2,
-                        borderWidth: 3,
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 6,
-                        pointHoverRadius: 10,
-                        pointBackgroundColor: '#10b981',
-                        pointBorderColor: '#16161e',
-                        pointBorderWidth: 2
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: { mode: 'index', intersect: false },
-                plugins: {
-                    legend: { position: 'top' },
-                    tooltip: {
-                        callbacks: {
-                            label: (ctx) => `${ctx.dataset.label}: ${ctx.raw}`
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        grid: { color: 'rgba(42, 42, 58, 0.3)' },
-                        ticks: { font: { size: 11 } }
-                    },
-                    y: {
-                        grid: { color: 'rgba(42, 42, 58, 0.3)' },
-                        ticks: { font: { size: 11 } }
-                    }
-                }
-            }
-        });
-    }
+    buildVerticalBarChart('teamChart', teamData, 'Interviews', {
+        background: 'rgba(168, 85, 247, 0.75)',
+        border: '#a855f7'
+    });
+
+    buildDoughnutChart('interviewStatusChart', interviewStatusData);
+
+    buildVerticalBarChart('recordRoundChart', recordRoundData, 'Completed Interviews', {
+        background: 'rgba(245, 158, 11, 0.78)',
+        border: '#f59e0b'
+    });
+
+    buildHorizontalBarChart('kpiChart', kpiData, 'Match Rate', {
+        background: 'rgba(20, 184, 166, 0.75)',
+        border: '#14b8a6'
+    }, '%', 100);
+
+    buildVerticalBarChart('activityChart', activityData, 'Active Candidates', {
+        background: 'rgba(236, 72, 153, 0.75)',
+        border: '#ec4899'
+    });
+
+    buildHorizontalBarChart('candidateFocusChart', candidateFocusData, 'Interviews', {
+        background: 'rgba(6, 182, 212, 0.75)',
+        border: '#06b6d4'
+    });
+
+    buildLineChart('poChart', poData, 'PO Records', {
+        border: '#f472b6',
+        gradientTop: 'rgba(244, 114, 182, 0.35)',
+        gradientBottom: 'rgba(244, 114, 182, 0.03)'
+    });
 </script>
 {% endblock %}

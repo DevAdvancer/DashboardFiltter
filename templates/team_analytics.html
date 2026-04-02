@@ -4,7 +4,52 @@
 {% block title %}Team Analytics{% endblock %}
 
 {% block content %}
-<div class="analytics-page">
+{% set hero_team = team_detail or (team_stats[0] if team_stats else None) %}
+<div class="analytics-page report-page">
+    <section class="card report-hero">
+        <div class="report-copy">
+            <span class="report-eyebrow">Team Performance</span>
+            <h2 class="report-title">{{ hero_team.team ~ ' Team Funnel' if team_detail else 'Team Analytics' }}</h2>
+            <p class="report-description">
+                {% if team_detail %}
+                Explore the selected team's funnel strength, member contribution, and where stage progression is strongest or dropping off.
+                {% else %}
+                Compare team throughput and stage-by-stage conversion so leaders can quickly see where capacity and performance are concentrated.
+                {% endif %}
+            </p>
+        </div>
+        <div class="report-highlights">
+            <div class="report-highlight">
+                <span class="report-highlight-label">Leading Team</span>
+                <span class="report-highlight-value">{{ hero_team.team if hero_team else 'No data' }}</span>
+                <span class="report-highlight-meta">
+                    {% if team_detail %}
+                    {{ team_detail.member_count }} members in this team
+                    {% elif hero_team %}
+                    Highest ranked team in the current filter window
+                    {% else %}
+                    Apply a wider date range to populate team insights
+                    {% endif %}
+                </span>
+            </div>
+            <div class="report-highlight">
+                <span class="report-highlight-label">Interviews Tracked</span>
+                <span class="report-highlight-value">{{ team_detail.interview_count if team_detail else team_stats|sum(attribute='interview_count') }}</span>
+                <span class="report-highlight-meta">{{ start_date or 'All time' }} to {{ end_date or 'Today' }}</span>
+            </div>
+            <div class="report-highlight">
+                <span class="report-highlight-label">Screening to 1st</span>
+                <span class="report-highlight-value">{{ hero_team.screening_to_1st if hero_team else 0 }}%</span>
+                <span class="report-highlight-meta">Primary conversion benchmark for team quality</span>
+            </div>
+            <div class="report-highlight">
+                <span class="report-highlight-label">Final Round Volume</span>
+                <span class="report-highlight-value">{{ team_detail.final if team_detail else team_stats|sum(attribute='final') }}</span>
+                <span class="report-highlight-meta">Final-stage interviews captured by the current scope</span>
+            </div>
+        </div>
+    </section>
+
     <!-- Quick Select Filters -->
     <div class="quick-filters card">
         <div class="quick-filters-label">
@@ -305,10 +350,10 @@
                             <th>2nd</th>
                             <th>3rd/Tech</th>
                             <th>Final</th>
-                            <th>Scr→1st</th>
-                            <th>1st→2nd</th>
-                            <th>2nd→3rd</th>
-                            <th>3rd→Fin</th>
+                            <th>Scr to 1st</th>
+                            <th>1st to 2nd</th>
+                            <th>2nd to 3rd</th>
+                            <th>3rd to Fin</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -400,10 +445,10 @@
                         <th>2nd</th>
                         <th>3rd/Tech</th>
                         <th>Final</th>
-                        <th>Scr→1st</th>
-                        <th>1st→2nd</th>
-                        <th>2nd→3rd</th>
-                        <th>3rd→Fin</th>
+                        <th>Scr to 1st</th>
+                        <th>1st to 2nd</th>
+                        <th>2nd to 3rd</th>
+                        <th>3rd to Fin</th>
                         <th></th>
                     </tr>
                 </thead>

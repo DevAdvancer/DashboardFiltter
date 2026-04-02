@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify, current_app, send_file
+from flask import Blueprint, render_template, request, jsonify, current_app, send_file, redirect, url_for
 from db import get_db
 from datetime import datetime
 from collections import Counter, defaultdict
@@ -142,26 +142,39 @@ def get_expert_funnel_data(db, start_date='', end_date='', filter_team=None, fil
     # Build query for taskBody collection
     match_filters = build_task_query(start_date, end_date)
 
-    # Get all completed tasks with LIMIT for performance
-    docs = list(db.taskBody.find(match_filters, {
-        "assignedTo": 1,
-        "actualRound": 1,
-        "_id": 0
-    }).limit(50000))
+    # Aggregate by expert and raw round in Mongo first so we process far fewer rows in Python.
+    round_rows = list(
+        db.taskBody.aggregate(
+            [
+                {"$match": match_filters},
+                {
+                    "$group": {
+                        "_id": {
+                            "expert": "$assignedTo",
+                            "round": "$actualRound",
+                        },
+                        "count": {"$sum": 1},
+                    }
+                },
+            ],
+            allowDiskUse=True,
+        )
+    )
 
-    # Aggregate by expert and stage
+    # Normalize raw rounds into funnel stages per expert.
     expert_stage_counts = defaultdict(lambda: Counter())
 
-    for doc in docs:
-        expert = doc.get("assignedTo")
+    for row in round_rows:
+        row_id = row.get("_id") or {}
+        expert = row_id.get("expert")
         if not expert:
             continue
 
-        stage = normalize_round(doc.get("actualRound"))
+        stage = normalize_round(row_id.get("round"))
         if not stage:
             continue
 
-        expert_stage_counts[expert][stage] += 1
+        expert_stage_counts[expert][stage] += row.get("count", 0)
 
     # Build expert stats with filtration
     expert_stats = []
@@ -318,23 +331,34 @@ def expert_analytics():
                 expert_detail = single_stats[0]
 
         if expert_detail:
-            # Get recent tasks for this expert
-            task_query = build_task_query(start_date, end_date)
-            task_query['assignedTo'] = selected_expert
+            detail_cache_key = analytics_cache_key("expert-detail", start_date, end_date, selected_expert)
+            cached_detail = current_app.cache.get(detail_cache_key)
 
-            expert_tasks = list(db.taskBody.find(task_query).sort('receivedDateTime', -1).limit(25))
+            if cached_detail is None:
+                # Get recent tasks for this expert
+                task_query = build_task_query(start_date, end_date)
+                task_query['assignedTo'] = selected_expert
 
-            # Get round distribution for charts
-            round_pipeline = [
-                {'$match': task_query},
-                {'$group': {'_id': '$actualRound', 'count': {'$sum': 1}}},
-                {'$sort': {'count': -1}}
-            ]
-            round_dist = list(db.taskBody.aggregate(round_pipeline))
-            expert_detail['round_distribution'] = {
-                (item['_id'] or 'Unknown'): item['count']
-                for item in round_dist
-            }
+                expert_tasks = list(db.taskBody.find(task_query).sort('receivedDateTime', -1).limit(25))
+
+                # Get round distribution for charts
+                round_pipeline = [
+                    {'$match': task_query},
+                    {'$group': {'_id': '$actualRound', 'count': {'$sum': 1}}},
+                    {'$sort': {'count': -1}}
+                ]
+                round_dist = list(db.taskBody.aggregate(round_pipeline))
+                cached_detail = {
+                    'expert_tasks': expert_tasks,
+                    'round_distribution': {
+                        (item['_id'] or 'Unknown'): item['count']
+                        for item in round_dist
+                    }
+                }
+                current_app.cache.set(detail_cache_key, cached_detail, timeout=300)
+
+            expert_tasks = cached_detail.get('expert_tasks', [])
+            expert_detail['round_distribution'] = cached_detail.get('round_distribution', {})
 
     return render_template(
         'expert_analytics.html',
@@ -410,55 +434,7 @@ def team_analytics():
 
 @analytics_bp.route('/funnel')
 def funnel_analytics():
-    db = get_db()
-    start_date, end_date = get_date_filter_strings()
-
-    # Get filter parameters
-    filter_team = request.args.get('team', '') or None
-    filter_expert = request.args.get('expert', '') or None
-
-    teams_list, all_experts, teams_map = get_analytics_filter_options(completed_only=True)
-    # Get overall funnel data (with filters for alignment)
-    expert_stats, _ = get_expert_funnel_data(db, start_date, end_date, filter_team, filter_expert)
-
-    # Aggregate totals from filtered experts only
-    total_screening = sum(s['screening'] for s in expert_stats)
-    total_first = sum(s['first'] for s in expert_stats)
-    total_second = sum(s['second'] for s in expert_stats)
-    total_third = sum(s['third_tech'] for s in expert_stats)
-    total_final = sum(s['final'] for s in expert_stats)
-
-    total_interviews = total_first + total_second + total_third + total_final
-
-    funnel_totals = {
-        'screening': total_screening,
-        'first': total_first,
-        'second': total_second,
-        'third_tech': total_third,
-        'final': total_final,
-        'total_interviews': total_interviews,
-        'screening_to_1st': pct(total_first, total_screening),
-        'first_to_2nd': pct(total_second, total_first),
-        'second_to_3rd': pct(total_third, total_second),
-        'third_to_final': pct(total_final, total_third),
-    }
-
-    # Get team-level funnel (with same filters for alignment)
-    team_stats, _ = get_team_funnel_data(db, start_date, end_date, filter_team, filter_expert)
-
-    return render_template(
-        'funnel_analytics.html',
-        funnel_totals=funnel_totals,
-        expert_stats=expert_stats[:20],
-        team_stats=team_stats,
-        teams=teams_list,
-        experts=all_experts,
-        teams_map=teams_map,
-        selected_team=filter_team or '',
-        selected_expert=filter_expert or '',
-        start_date=start_date,
-        end_date=end_date
-    )
+    return redirect(url_for('dashboard.index'))
 
 
 @analytics_bp.route('/interview-stats')

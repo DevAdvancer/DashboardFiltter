@@ -3,7 +3,8 @@
 {% block title %}Expert Candidate Activity{% endblock %}
 
 {% block content %}
-<div class="page-content">
+{% set lead_team = team_data[0] if team_data else None %}
+<div class="page-content report-page">
     {% if po_counts_locked %}
     <div class="card error-card" style="margin-bottom: 20px;">
         <div class="card-header">
@@ -15,6 +16,50 @@
         </p>
     </div>
     {% endif %}
+
+    <section class="card report-hero">
+        <div class="report-copy">
+            <span class="report-eyebrow">Activity Snapshot</span>
+            <h2 class="report-title">Expert Candidate Activity</h2>
+            <p class="report-description">
+                Track which teams and experts are holding the most active candidate load, then drill into the candidate list directly from the same page.
+            </p>
+        </div>
+        <div class="report-highlights">
+            <div class="report-highlight">
+                <span class="report-highlight-label">Active Candidates</span>
+                <span class="report-highlight-value">{{ summary.active_candidates }}</span>
+                <span class="report-highlight-meta">Candidates currently active in {{ summary.date_range }}</span>
+            </div>
+            <div class="report-highlight">
+                <span class="report-highlight-label">Total Interviews</span>
+                <span class="report-highlight-value">{{ summary.total_interviews }}</span>
+                <span class="report-highlight-meta">Interview activity across {{ summary.teams_count }} visible teams</span>
+            </div>
+            <div class="report-highlight">
+                <span class="report-highlight-label">Leading Team</span>
+                <span class="report-highlight-value">{{ lead_team.team if lead_team else 'No data' }}</span>
+                <span class="report-highlight-meta">
+                    {% if lead_team %}
+                    {{ lead_team.active }} active candidates from the busiest team in this view
+                    {% else %}
+                    Update the month or filters to populate team activity
+                    {% endif %}
+                </span>
+            </div>
+            <div class="report-highlight">
+                <span class="report-highlight-label">PO Visibility</span>
+                <span class="report-highlight-value">{{ 'Locked' if po_counts_locked else 'Live' }}</span>
+                <span class="report-highlight-meta">
+                    {% if po_counts_locked %}
+                    Unlock PO access to surface placement offer counts in this report
+                    {% else %}
+                    Placement offer counts are included for visible experts
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+    </section>
 
     <!-- Filters Card -->
     <div class="card filters-card">
@@ -123,7 +168,7 @@
                         Apply Filters
                     </button>
                     <a href="{{ url_for('candidates.expert_candidate_activity') }}" class="btn btn-ghost">Reset</a>
-                    <a href="{{ url_for('candidates.export_expert_activity', month=selected_month, year=selected_year, status=selected_status, team=selected_team, expert=selected_expert, exclude_rounds=exclude_rounds) }}" class="btn btn-success" style="background-color: #10b981; color: white;">
+                    <a href="{{ url_for('candidates.export_expert_activity', month=selected_month, year=selected_year, status=selected_status, team=selected_team, expert=selected_expert, exclude_rounds=exclude_rounds) }}" class="btn btn-success">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                             <polyline points="7 10 12 15 17 10"></polyline>
@@ -141,7 +186,7 @@
     <!-- Summary Stats -->
     <div class="stats-row">
         <div class="stat-card">
-            <div class="stat-icon" style="background: var(--blue-light); color: var(--blue);">
+            <div class="stat-icon blue">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                 </svg>
@@ -152,7 +197,7 @@
             </div>
         </div>
         <div class="stat-card">
-            <div class="stat-icon" style="background: var(--primary-light); color: var(--primary);">
+            <div class="stat-icon purple">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
                     <circle cx="9" cy="7" r="4" />
@@ -166,7 +211,7 @@
             </div>
         </div>
         <div class="stat-card">
-            <div class="stat-icon" style="background: var(--green-light); color: var(--green);">
+            <div class="stat-icon green">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                     <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                     <polyline points="22 4 12 14.01 9 11.01" />
@@ -178,7 +223,7 @@
             </div>
         </div>
         <div class="stat-card">
-            <div class="stat-icon" style="background: var(--red-light); color: var(--red);">
+            <div class="stat-icon red">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                     <circle cx="12" cy="12" r="10" />
                     <line x1="15" y1="9" x2="9" y2="15" />
@@ -191,7 +236,7 @@
             </div>
         </div>
         <div class="stat-card">
-            <div class="stat-icon" style="background: var(--purple-light); color: var(--purple);">
+            <div class="stat-icon teal">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                     <rect x="3" y="3" width="7" height="7" rx="2" />
                     <rect x="14" y="3" width="7" height="7" rx="2" />

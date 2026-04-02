@@ -4,7 +4,47 @@
 {% block title %}Interview Stats{% endblock %}
 
 {% block content %}
-<div class="analytics-page">
+{% set top_team = team_data[0] if team_data else None %}
+{% set completion_rate = ((overall_completed / overall_total) * 100) | round(1) if overall_total else 0 %}
+<div class="analytics-page report-page">
+    <section class="card report-hero">
+        <div class="report-copy">
+            <span class="report-eyebrow">Status Snapshot</span>
+            <h2 class="report-title">Interview Stats</h2>
+            <p class="report-description">
+                Monitor completion, cancellations, and reschedules across teams and experts so the status mix is visible before you dive into detailed tables.
+            </p>
+        </div>
+        <div class="report-highlights">
+            <div class="report-highlight">
+                <span class="report-highlight-label">Completion Rate</span>
+                <span class="report-highlight-value">{{ completion_rate }}%</span>
+                <span class="report-highlight-meta">Completed interviews out of total tracked activity</span>
+            </div>
+            <div class="report-highlight">
+                <span class="report-highlight-label">Tracked Volume</span>
+                <span class="report-highlight-value">{{ overall_total }}</span>
+                <span class="report-highlight-meta">{{ start_date or 'All time' }} to {{ end_date or 'Today' }}</span>
+            </div>
+            <div class="report-highlight">
+                <span class="report-highlight-label">Primary Risk</span>
+                <span class="report-highlight-value">{{ overall_cancelled + overall_rescheduled }}</span>
+                <span class="report-highlight-meta">Cancelled and rescheduled interviews needing attention</span>
+            </div>
+            <div class="report-highlight">
+                <span class="report-highlight-label">Leading Team</span>
+                <span class="report-highlight-value">{{ top_team.team if top_team else 'No data' }}</span>
+                <span class="report-highlight-meta">
+                    {% if top_team %}
+                    {{ top_team.total }} interviews with {{ top_team.active_members }} active members
+                    {% else %}
+                    Expand the filters to populate team-level insights
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+    </section>
+
     <!-- Quick Select Filters -->
     <div class="quick-filters card">
         <div class="quick-filters-label">
