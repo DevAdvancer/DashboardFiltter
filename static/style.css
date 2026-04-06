@@ -3179,6 +3179,14 @@ select option {
     text-overflow: ellipsis;
 }
 
+.subject-cell.subject-cell-full {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+    line-height: 1.5;
+}
+
 .expert-cell.compact {
     gap: 8px;
 }

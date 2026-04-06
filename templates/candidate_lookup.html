@@ -351,8 +351,8 @@
                     {% for record in interview_records %}
                     <tr>
                         <td class="text-muted">{{ loop.index }}</td>
-                        <td class="subject-cell" title="{{ record.subject }}">
-                            {{ record.subject[:50] }}{% if record.subject|length > 50 %}...{% endif %}
+                        <td class="subject-cell subject-cell-full" title="{{ record.subject }}">
+                            {{ record.subject }}
                         </td>
                         <td><span class="badge badge-subtle">{{ record.actualRound or 'N/A' }}</span></td>
                         <td>
