@@ -599,6 +599,18 @@ html, body {
     color: var(--text);
 }
 
+.btn-danger {
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--red);
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.btn-danger:hover {
+    background: var(--red-light);
+    border-color: rgba(239, 68, 68, 0.45);
+    color: var(--red);
+}
+
 .btn-sm {
     padding: 6px 12px;
     font-size: 12px;
@@ -5643,6 +5655,17 @@ select {
     max-width: 320px;
     white-space: normal;
     color: var(--text-secondary);
+}
+
+.po-record-actions-cell {
+    width: 1%;
+    white-space: nowrap;
+}
+
+.po-record-actions-form {
+    display: flex;
+    justify-content: flex-end;
+    margin: 0;
 }
 
 .error-card {

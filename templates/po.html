@@ -395,6 +395,9 @@
                         <th>Client</th>
                         <th>Rate</th>
                         <th>Preview</th>
+                        {% if can_delete_po_records %}
+                        <th class="text-center">Actions</th>
+                        {% endif %}
                     </tr>
                 </thead>
                 <tbody>
@@ -410,6 +413,27 @@
                         <td>{{ record.client or 'N/A' }}</td>
                         <td>{{ record.rate or 'N/A' }}</td>
                         <td class="preview-cell">{{ record.preview_text or 'N/A' }}</td>
+                        {% if can_delete_po_records %}
+                        <td class="po-record-actions-cell">
+                            <form method="POST"
+                                  action="{{ url_for('po.po_hide_record') }}"
+                                  class="po-record-actions-form"
+                                  onsubmit="return confirm('Hide PO details for ' + {{ record.candidate_name_display|tojson }} + '? This removes it from the PO dashboard but keeps it in Supabase.');">
+                                <input type="hidden" name="record_id" value="{{ record.record_id }}">
+                                <input type="hidden" name="month" value="{{ selected_month or '' }}">
+                                <input type="hidden" name="date" value="{{ selected_date or '' }}">
+                                <input type="hidden" name="team" value="{{ selected_team or '' }}">
+                                <input type="hidden" name="expert" value="{{ selected_expert or '' }}">
+                                <input type="hidden" name="group_team" value="{{ selected_group.team_name }}">
+                                <input type="hidden" name="group_expert" value="{{ selected_group.expert_name }}">
+                                <input type="hidden" name="group_manager" value="{{ selected_group.manager_name }}">
+                                <input type="hidden" name="group_team_lead" value="{{ selected_group.team_lead_name }}">
+                                <button type="submit" class="btn btn-danger btn-sm" title="Hide this PO row">
+                                    Delete
+                                </button>
+                            </form>
+                        </td>
+                        {% endif %}
                     </tr>
                     {% endfor %}
                 </tbody>

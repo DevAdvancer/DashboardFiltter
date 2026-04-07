@@ -30,7 +30,7 @@ from services.team_management import (
 
 po_bp = Blueprint("po", __name__)
 
-FIELDS = """
+LEGACY_FIELDS = """
 id,
 candidate_name,
 email,
@@ -49,8 +49,31 @@ received_at,
 created_at
 """
 
+FIELDS = """
+id,
+candidate_name,
+email,
+phone,
+location,
+position,
+job_location,
+client,
+rate,
+signup_date,
+interview_support_by,
+team_lead,
+manager,
+preview_text,
+received_at,
+created_at,
+is_hidden,
+hidden_at,
+hidden_by_label
+"""
+
 MAX_FETCH_ROWS = max(int(os.getenv("PO_MAX_FETCH_ROWS", "0") or "0"), 0)
 FETCH_BATCH_SIZE = max(int(os.getenv("PO_FETCH_BATCH_SIZE", 1000)), 1)
+PO_HIDE_MIGRATION_PATH = "supabase/po_details_soft_hide.sql"
 
 
 def get_supabase_client():
@@ -185,12 +208,45 @@ def enrich_record(row, management_directory=None):
     enriched["manager_name_key"] = normalize_lookup_text(enriched.get("manager_name"))
     enriched["team_lead_name_key"] = normalize_lookup_text(enriched.get("team_lead_name"))
     enriched["team_name_key"] = normalize_lookup_text(enriched.get("team_name"))
+    enriched["is_hidden"] = bool(row.get("is_hidden"))
+    enriched["hidden_at"] = row.get("hidden_at")
+    enriched["hidden_by_label"] = clean_text(row.get("hidden_by_label"))
     return enriched
+
+
+def po_hide_enabled(po_access=None):
+    return bool(po_pin_security_enabled() and po_access_can_sync(po_access))
+
+
+def build_po_fetch_query(supabase, fields, start, end, *, visible_only):
+    query = (
+        supabase.table("po_details")
+        .select(fields)
+        .order("received_at", desc=True)
+        .order("created_at", desc=True)
+        .range(start, end)
+    )
+    if visible_only:
+        query = query.eq("is_hidden", False)
+    return query
+
+
+def missing_po_hide_columns(exc):
+    message = str(exc).lower()
+    return any(field in message for field in ("is_hidden", "hidden_at", "hidden_by_label"))
+
+
+def po_hide_schema_message():
+    return (
+        "PO hide requires the new Supabase hide columns. "
+        f"Apply `{PO_HIDE_MIGRATION_PATH}` and try again."
+    )
 
 
 def fetch_po_records(supabase):
     records = []
     start = 0
+    use_hide_columns = True
 
     while True:
         if MAX_FETCH_ROWS and start >= MAX_FETCH_ROWS:
@@ -200,14 +256,26 @@ def fetch_po_records(supabase):
         if MAX_FETCH_ROWS:
             end = min(end, MAX_FETCH_ROWS - 1)
 
-        response = (
-            supabase.table("po_details")
-            .select(FIELDS)
-            .order("received_at", desc=True)
-            .order("created_at", desc=True)
-            .range(start, end)
-            .execute()
-        )
+        try:
+            response = build_po_fetch_query(
+                supabase,
+                FIELDS if use_hide_columns else LEGACY_FIELDS,
+                start,
+                end,
+                visible_only=use_hide_columns,
+            ).execute()
+        except Exception as exc:
+            if not use_hide_columns or not missing_po_hide_columns(exc):
+                raise
+
+            use_hide_columns = False
+            response = build_po_fetch_query(
+                supabase,
+                LEGACY_FIELDS,
+                start,
+                end,
+                visible_only=False,
+            ).execute()
 
         batch = response.data or []
         if not batch:
@@ -575,6 +643,7 @@ def po_dashboard():
         po_access=po_access,
         po_lock=po_lock,
         can_fetch_new=(not po_pin_security_enabled()) or po_access_can_sync(po_access),
+        can_delete_po_records=po_hide_enabled(po_access),
     )
 
 
@@ -719,6 +788,79 @@ def po_api_records():
             "data": [serialize_record(record) for record in paged_records],
         }
     )
+
+
+@po_bp.route("/hide-record", methods=["POST"])
+def po_hide_record():
+    redirect_params = build_po_redirect_params(request.form)
+    redirect_target = url_for("po.po_dashboard", **redirect_params)
+
+    if po_pin_security_enabled() and not get_current_po_access():
+        return po_access_redirect(redirect_target)
+
+    po_access = get_current_po_access()
+    if not po_hide_enabled(po_access):
+        flash("Only PO admin access can hide records.", "error")
+        return redirect(redirect_target)
+
+    record_id = clean_text(request.form.get("record_id", ""))
+    if not record_id:
+        flash("PO record id is missing.", "error")
+        return redirect(redirect_target)
+
+    try:
+        supabase = get_supabase_client()
+        response = (
+            supabase.table("po_details")
+            .select("id,candidate_name,is_hidden")
+            .eq("id", record_id)
+            .limit(1)
+            .execute()
+        )
+        rows = response.data or []
+        if not rows:
+            flash("PO record not found.", "error")
+            return redirect(redirect_target)
+
+        row = rows[0]
+        if row.get("is_hidden"):
+            flash("That PO record is already hidden.", "info")
+            return redirect(redirect_target)
+
+        (
+            supabase.table("po_details")
+            .update(
+                {
+                    "is_hidden": True,
+                    "hidden_at": datetime.now(timezone.utc).isoformat(),
+                    "hidden_by_label": po_access.get("label", ""),
+                }
+            )
+            .eq("id", record_id)
+            .eq("is_hidden", False)
+            .execute()
+        )
+        confirm_response = (
+            supabase.table("po_details")
+            .select("id,is_hidden")
+            .eq("id", record_id)
+            .limit(1)
+            .execute()
+        )
+        confirmed_rows = confirm_response.data or []
+        if not confirmed_rows or not confirmed_rows[0].get("is_hidden"):
+            flash("PO record could not be hidden. It may already be hidden.", "error")
+            return redirect(redirect_target)
+
+        candidate_name = display_value(row.get("candidate_name"), "Selected candidate")
+        flash(f"Hidden PO record for {candidate_name}.", "success")
+    except Exception as exc:
+        if missing_po_hide_columns(exc):
+            flash(po_hide_schema_message(), "error")
+        else:
+            flash(f"PO hide failed: {exc}", "error")
+
+    return redirect(redirect_target)
 
 
 @po_bp.route("/fetch-new", methods=["POST"])
