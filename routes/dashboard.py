@@ -5,7 +5,12 @@ from flask import Blueprint, current_app, render_template, request, url_for
 
 from db import get_db, get_teams_db
 from po_security import filter_records_for_po_access, get_current_po_access, po_pin_security_enabled
-from routes.analytics import get_expert_funnel_data, get_team_funnel_data
+from routes.analytics import (
+    build_interview_stats_match,
+    get_expert_funnel_data,
+    get_team_funnel_data,
+    normalize_interview_status_bucket,
+)
 from routes.candidates import fetch_expert_activity_data
 from routes.kpi import calculate_kpi_data
 from routes.po import fetch_po_records, get_supabase_client, month_label
@@ -131,11 +136,7 @@ def index():
             reverse=True,
         )
 
-        interview_match = {
-            **date_filter,
-            "assignedTo": {"$type": "string", "$ne": ""},
-            "actualRound": {"$nin": ["Screening", "On demand", "On Demand or AI Interview"]},
-        }
+        interview_match = build_interview_stats_match(start_date, end_date)
 
         interview_status_rows = list(
             db.taskBody.aggregate(
@@ -153,9 +154,9 @@ def index():
         }
         other_status_total = 0
         for row in interview_status_rows:
-            status_name = row.get("_id") or "Unknown"
+            status_name = normalize_interview_status_bucket(row.get("_id"))
             if status_name in interview_status_totals:
-                interview_status_totals[status_name] = row["count"]
+                interview_status_totals[status_name] += row["count"]
             else:
                 other_status_total += row["count"]
         if other_status_total:
