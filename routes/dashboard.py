@@ -324,6 +324,17 @@ def index():
                 "tone": "purple",
             },
             {
+                "name": "Candidate Analytics",
+                "metric": (
+                    f"{top_candidate['count']} interviews for {top_candidate['name']}"
+                    if top_candidate
+                    else "Candidate conversion view"
+                ),
+                "description": "Candidate funnel performance with unique client coverage.",
+                "href": url_for("analytics.candidate_analytics"),
+                "tone": "cyan",
+            },
+            {
                 "name": "Interview Stats",
                 "metric": f"{total_interviews} interviews",
                 "description": "Status mix across completed, cancelled, and rescheduled work.",

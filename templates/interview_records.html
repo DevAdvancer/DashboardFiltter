@@ -11,19 +11,19 @@
             <span class="report-eyebrow">Operations Log</span>
             <h2 class="report-title">Interview Records</h2>
             <p class="report-description">
-                Browse completed interview records by team and expert, then expand into the detailed log when you need subject-level context.
+                Browse interview records by team and expert, then expand into the detailed log when you need subject-level context.
             </p>
         </div>
         <div class="report-highlights">
             <div class="report-highlight">
-                <span class="report-highlight-label">Completed Logs</span>
+                <span class="report-highlight-label">Tracked Logs</span>
                 <span class="report-highlight-value">{{ overall_total }}</span>
-                <span class="report-highlight-meta">Completed records inside the current filter window</span>
+                <span class="report-highlight-meta">Interview records inside the current filter window</span>
             </div>
             <div class="report-highlight">
                 <span class="report-highlight-label">Active Experts</span>
                 <span class="report-highlight-value">{{ team_data|sum(attribute='active_count') }}</span>
-                <span class="report-highlight-meta">Experts with completed records across {{ team_data|length }} teams</span>
+                <span class="report-highlight-meta">Experts with interview records across {{ team_data|length }} teams</span>
             </div>
             <div class="report-highlight">
                 <span class="report-highlight-label">Busiest Team</span>
@@ -32,7 +32,7 @@
                     {% if lead_team %}
                     {{ lead_team.total }} interview records in the selected range
                     {% else %}
-                    Adjust filters to surface recent completed work
+                    Adjust filters to surface recent interview activity
                     {% endif %}
                 </span>
             </div>
@@ -227,7 +227,7 @@
                             <span class="expert-email">{{ expert_data.expert }}</span>
                         </div>
                     </div>
-                    <span class="count-badge completed">{{ expert_data.count }} interviews</span>
+                    <span class="count-badge primary">{{ expert_data.count }} interviews</span>
                 </div>
 
                 <div class="records-list">
@@ -242,6 +242,15 @@
                         </div>
                         <div class="record-meta">
                             <span class="badge badge-tech">{{ record.round }}</span>
+                            {% if record.status_bucket == 'Completed' %}
+                            <span class="count-badge completed small">{{ record.status }}</span>
+                            {% elif record.status_bucket == 'Cancelled' %}
+                            <span class="count-badge cancelled small">{{ record.status }}</span>
+                            {% elif record.status_bucket == 'Rescheduled' %}
+                            <span class="count-badge rescheduled small">{{ record.status }}</span>
+                            {% else %}
+                            <span class="count-badge notdone small">{{ record.status }}</span>
+                            {% endif %}
                             <span class="record-date">{{ record.date }}</span>
                         </div>
                     </div>
@@ -303,6 +312,7 @@
                             <th>Subject</th>
                             <th>Candidate</th>
                             <th>Round</th>
+                            <th>Status</th>
                             <th>Date</th>
                         </tr>
                     </thead>
@@ -319,6 +329,17 @@
                             <td class="subject-cell">{{ record.subject }}</td>
                             <td>{{ record.candidate }}</td>
                             <td><span class="badge badge-tech">{{ record.round }}</span></td>
+                            <td>
+                                {% if record.status_bucket == 'Completed' %}
+                                <span class="count-badge completed small">{{ record.status }}</span>
+                                {% elif record.status_bucket == 'Cancelled' %}
+                                <span class="count-badge cancelled small">{{ record.status }}</span>
+                                {% elif record.status_bucket == 'Rescheduled' %}
+                                <span class="count-badge rescheduled small">{{ record.status }}</span>
+                                {% else %}
+                                <span class="count-badge notdone small">{{ record.status }}</span>
+                                {% endif %}
+                            </td>
                             <td class="date-cell">{{ record.date[:10] if record.date else '-' }}</td>
                         </tr>
                         {% endfor %}

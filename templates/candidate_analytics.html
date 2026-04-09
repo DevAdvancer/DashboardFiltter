@@ -1,0 +1,576 @@
+{% extends "base.html" %}
+
+{% block page_title %}Candidate Analytics - MEGA DASHBOARD{% endblock %}
+{% block title %}Candidate Analytics{% endblock %}
+
+{% block content %}
+{% set hero_candidate = candidate_detail or (candidate_stats[0] if candidate_stats else None) %}
+<div class="analytics-page report-page">
+    {% if po_counts_locked %}
+    <div class="card error-card" style="margin-bottom: 20px;">
+        <div class="card-header">
+            <h3 class="card-title">Unique Client Counts Are Locked</h3>
+        </div>
+        <p class="muted-text">
+            Candidate client coverage comes from the PO dashboard. Unlock PO access first, then this page will show real unique-client counts.
+            <a href="{{ po_unlock_url }}" class="candidate-link">Unlock PO Access</a>
+        </p>
+    </div>
+    {% elif po_state == 'unavailable' and po_client_error %}
+    <div class="card error-card" style="margin-bottom: 20px;">
+        <div class="card-header">
+            <h3 class="card-title">Client Data Could Not Load</h3>
+        </div>
+        <p class="muted-text">{{ po_client_error }}</p>
+    </div>
+    {% endif %}
+
+    <section class="card report-hero">
+        <div class="report-copy">
+            <span class="report-eyebrow">Candidate Conversion</span>
+            <h2 class="report-title">{{ hero_candidate.candidate ~ ' Journey' if candidate_detail else 'Candidate Analytics' }}</h2>
+            <p class="report-description">
+                {% if candidate_detail %}
+                Review this candidate's completed funnel movement, matched client coverage, and recent interview activity from one page.
+                {% else %}
+                Compare candidate funnel progress, unique client reach, and conversion quality so it is easier to spot who is moving fastest across the pipeline.
+                {% endif %}
+            </p>
+        </div>
+        <div class="report-highlights">
+            <div class="report-highlight">
+                <span class="report-highlight-label">Current Focus</span>
+                <span class="report-highlight-value">{{ hero_candidate.candidate if hero_candidate else 'No data' }}</span>
+                <span class="report-highlight-meta">
+                    {% if candidate_detail %}
+                    {{ candidate_detail.teams_count }} team{{ '' if candidate_detail.teams_count == 1 else 's' }}, rank #{{ candidate_detail.rank }}
+                    {% elif hero_candidate %}
+                    Highest ranked candidate in the current filter window
+                    {% else %}
+                    Adjust the date filters to populate candidate insights
+                    {% endif %}
+                </span>
+            </div>
+            <div class="report-highlight">
+                <span class="report-highlight-label">Interviews Tracked</span>
+                <span class="report-highlight-value">{{ candidate_detail.interview_count if candidate_detail else candidate_stats|sum(attribute='interview_count') }}</span>
+                <span class="report-highlight-meta">{{ start_date or 'All time' }} to {{ end_date or 'Today' }}</span>
+            </div>
+            <div class="report-highlight">
+                <span class="report-highlight-label">Unique Clients</span>
+                <span class="report-highlight-value">
+                    {% if po_state == 'ready' %}
+                    {{ hero_candidate.unique_clients if hero_candidate and hero_candidate.unique_clients is not none else 0 }}
+                    {% elif po_counts_locked %}
+                    Locked
+                    {% else %}
+                    N/A
+                    {% endif %}
+                </span>
+                <span class="report-highlight-meta">
+                    {% if po_state == 'ready' and hero_candidate %}
+                    {{ hero_candidate.po_count or 0 }} matched PO records in the current scope
+                    {% elif po_counts_locked %}
+                    Unlock PO access to populate client coverage
+                    {% else %}
+                    PO-backed client coverage is currently unavailable
+                    {% endif %}
+                </span>
+            </div>
+            <div class="report-highlight">
+                <span class="report-highlight-label">Screening to 1st</span>
+                <span class="report-highlight-value">{{ hero_candidate.screening_to_1st if hero_candidate else 0 }}%</span>
+                <span class="report-highlight-meta">Primary candidate conversion indicator for this view</span>
+            </div>
+        </div>
+    </section>
+
+    <div class="quick-filters card">
+        <div class="quick-filters-label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12,6 12,12 16,14" />
+            </svg>
+            <span>Quick Select:</span>
+        </div>
+        <div class="quick-filters-buttons">
+            <button type="button" class="btn btn-ghost btn-sm quick-select" data-days="7">Last 7 Days</button>
+            <button type="button" class="btn btn-ghost btn-sm quick-select" data-days="30">Last 30 Days</button>
+            <button type="button" class="btn btn-ghost btn-sm quick-select" data-days="90">Last 90 Days</button>
+            <button type="button" class="btn btn-ghost btn-sm quick-select" data-range="this-month">This Month</button>
+            <button type="button" class="btn btn-ghost btn-sm quick-select" data-range="last-month">Last Month</button>
+            <button type="button" class="btn btn-ghost btn-sm quick-select" data-range="this-year">This Year</button>
+            <button type="button" class="btn btn-ghost btn-sm quick-select" data-range="all-time">All Time</button>
+        </div>
+    </div>
+
+    <div class="filters-card card">
+        <form method="GET" action="{{ url_for('analytics.candidate_analytics') }}" class="filters-form" id="filterForm">
+            <div class="filters-row">
+                <div class="filter-item">
+                    <label>Start Date</label>
+                    <input type="date" name="start_date" value="{{ start_date or '' }}" class="date-input">
+                </div>
+                <div class="filter-item">
+                    <label>End Date</label>
+                    <input type="date" name="end_date" value="{{ end_date or '' }}" class="date-input">
+                </div>
+                <div class="filter-item">
+                    <label>Team</label>
+                    <select name="team" class="select-single">
+                        <option value="">All Teams</option>
+                        {% for team in teams %}
+                        <option value="{{ team }}" {% if selected_team == team %}selected{% endif %}>{{ team }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-item">
+                    <label>Expert</label>
+                    <select name="expert" class="select-single">
+                        <option value="">All Experts</option>
+                        {% for expert in experts %}
+                        <option value="{{ expert }}" {% if selected_expert == expert %}selected{% endif %}>{{ expert.split('@')[0] }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-item">
+                    <label>Candidate</label>
+                    <input type="text" name="candidate" value="{{ selected_candidate }}"
+                        placeholder="Type candidate name..." class="text-input" list="candidate-list"
+                        autocomplete="off">
+                    <datalist id="candidate-list">
+                        {% for candidate_name in candidates %}
+                        <option value="{{ candidate_name }}">
+                        {% endfor %}
+                    </datalist>
+                </div>
+                <div class="filter-actions">
+                    <button type="submit" class="btn btn-primary">Apply</button>
+                    <button type="submit" class="btn btn-success" formaction="{{ url_for('analytics.export_candidate_analytics') }}"
+                        formmethod="get" name="format" value="excel">Export Excel</button>
+                    <button type="submit" class="btn btn-ghost" formaction="{{ url_for('analytics.export_candidate_analytics') }}"
+                        formmethod="get" name="format" value="csv">Export CSV</button>
+                    <a href="{{ url_for('analytics.candidate_analytics') }}" class="btn btn-ghost">Reset</a>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div class="stats-row">
+        <div class="stat-card">
+            <div class="stat-content">
+                <span class="stat-label">Total Candidates</span>
+                <span class="stat-value">{{ total_candidates }}</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-content">
+                <span class="stat-label">Total Screening</span>
+                <span class="stat-value">{{ candidate_stats|sum(attribute='screening') }}</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-content">
+                <span class="stat-label">Total Interviews</span>
+                <span class="stat-value">{{ candidate_stats|sum(attribute='interview_count') }}</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-content">
+                <span class="stat-label">Unique Clients</span>
+                <span class="stat-value">
+                    {% if po_state == 'ready' %}
+                    {{ total_unique_clients }}
+                    {% elif po_counts_locked %}
+                    Locked
+                    {% else %}
+                    N/A
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+    </div>
+
+    {% if candidate_detail %}
+    <div class="detail-section">
+        <div class="detail-header card">
+            <div class="detail-profile">
+                <div class="profile-avatar large">{{ candidate_detail.candidate[0]|upper }}</div>
+                <div class="profile-info">
+                    <h2 class="profile-name">{{ candidate_detail.candidate }}</h2>
+                    <div class="profile-meta">
+                        {% if candidate_detail.lead_team %}
+                        <span class="badge badge-info">{{ candidate_detail.lead_team }}</span>
+                        {% endif %}
+                        {% if candidate_detail.lead_expert %}
+                        <span class="badge badge-subtle">{{ candidate_detail.lead_expert.split('@')[0] }}</span>
+                        {% endif %}
+                        <span class="badge badge-subtle">Rank #{{ candidate_detail.rank }}</span>
+                        {% if candidate_detail.experts_count > 1 %}
+                        <span class="badge badge-subtle">{{ candidate_detail.experts_count }} experts</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="profile-stats">
+                <div class="profile-stat">
+                    <span class="profile-stat-value">{{ candidate_detail.interview_count }}</span>
+                    <span class="profile-stat-label">Interviews</span>
+                </div>
+                <div class="profile-stat">
+                    <span class="profile-stat-value text-blue">{{ candidate_detail.screening }}</span>
+                    <span class="profile-stat-label">Screening</span>
+                </div>
+                <div class="profile-stat">
+                    <span class="profile-stat-value text-green">{{ candidate_detail.final }}</span>
+                    <span class="profile-stat-label">Final</span>
+                </div>
+                <div class="profile-stat">
+                    <span class="profile-stat-value text-purple">{{ candidate_detail.screening_to_1st }}%</span>
+                    <span class="profile-stat-label">Conversion</span>
+                </div>
+                <div class="profile-stat">
+                    <span class="profile-stat-value text-teal">
+                        {% if po_state == 'ready' %}
+                        {{ candidate_detail.unique_clients or 0 }}
+                        {% elif po_counts_locked %}
+                        Locked
+                        {% else %}
+                        N/A
+                        {% endif %}
+                    </span>
+                    <span class="profile-stat-label">Clients</span>
+                </div>
+            </div>
+            <a href="{{ url_for('analytics.candidate_analytics', start_date=start_date, end_date=end_date, team=selected_team, expert=selected_expert, candidate=selected_candidate) }}"
+                class="btn btn-ghost">
+                Close
+            </a>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Interview Funnel</h3>
+            </div>
+            <div class="funnel-pipeline">
+                <div class="pipeline-stage">
+                    <div class="stage-bar screening" style="height: 100%">
+                        <span class="stage-count">{{ candidate_detail.screening }}</span>
+                    </div>
+                    <span class="stage-label">Screening</span>
+                </div>
+                <div class="pipeline-arrow">
+                    <span class="conversion-rate">{{ candidate_detail.screening_to_1st }}%</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                </div>
+                <div class="pipeline-stage">
+                    {% set h1 = (candidate_detail.first / candidate_detail.screening * 100) if candidate_detail.screening > 0 else 20 %}
+                    <div class="stage-bar first" style="height: {{ [h1, 20]|max }}%">
+                        <span class="stage-count">{{ candidate_detail.first }}</span>
+                    </div>
+                    <span class="stage-label">1st Round</span>
+                </div>
+                <div class="pipeline-arrow">
+                    <span class="conversion-rate">{{ candidate_detail.first_to_2nd }}%</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                </div>
+                <div class="pipeline-stage">
+                    {% set h2 = (candidate_detail.second / candidate_detail.screening * 100) if candidate_detail.screening > 0 else 15 %}
+                    <div class="stage-bar second" style="height: {{ [h2, 20]|max }}%">
+                        <span class="stage-count">{{ candidate_detail.second }}</span>
+                    </div>
+                    <span class="stage-label">2nd Round</span>
+                </div>
+                <div class="pipeline-arrow">
+                    <span class="conversion-rate">{{ candidate_detail.second_to_3rd }}%</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                </div>
+                <div class="pipeline-stage">
+                    {% set h3 = (candidate_detail.third_tech / candidate_detail.screening * 100) if candidate_detail.screening > 0 else 10 %}
+                    <div class="stage-bar third" style="height: {{ [h3, 20]|max }}%">
+                        <span class="stage-count">{{ candidate_detail.third_tech }}</span>
+                    </div>
+                    <span class="stage-label">3rd/Technical</span>
+                </div>
+                <div class="pipeline-arrow">
+                    <span class="conversion-rate">{{ candidate_detail.third_to_loop }}%</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                </div>
+                <div class="pipeline-stage">
+                    {% set hl = (candidate_detail.loop_round / candidate_detail.screening * 100) if candidate_detail.screening > 0 else 8 %}
+                    <div class="stage-bar loop" style="height: {{ [hl, 20]|max }}%">
+                        <span class="stage-count">{{ candidate_detail.loop_round }}</span>
+                    </div>
+                    <span class="stage-label">Loop Round</span>
+                </div>
+                <div class="pipeline-arrow">
+                    <span class="conversion-rate">{{ candidate_detail.loop_to_final }}%</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                </div>
+                <div class="pipeline-stage">
+                    {% set hf = (candidate_detail.final / candidate_detail.screening * 100) if candidate_detail.screening > 0 else 5 %}
+                    <div class="stage-bar final" style="height: {{ [hf, 20]|max }}%">
+                        <span class="stage-count">{{ candidate_detail.final }}</span>
+                    </div>
+                    <span class="stage-label">Final</span>
+                </div>
+            </div>
+        </div>
+
+        {% if po_state == 'ready' and candidate_detail.client_names %}
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Client Coverage</h3>
+                <span class="badge badge-subtle">{{ candidate_detail.client_names|length }} clients</span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:10px;">
+                {% for client_name in candidate_detail.client_names %}
+                <span class="badge badge-subtle">{{ client_name }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="charts-row">
+            <div class="chart-card card">
+                <div class="card-header">
+                    <h3 class="card-title">Round Distribution</h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="roundChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card card">
+                <div class="card-header">
+                    <h3 class="card-title">{% if po_state == 'ready' and candidate_detail.client_distribution %}Client Distribution{% else %}Expert Coverage{% endif %}</h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="secondaryChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        {% if candidate_tasks %}
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Recent Tasks</h3>
+            </div>
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Round</th>
+                            <th>Expert</th>
+                            <th>Team</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for task in candidate_tasks %}
+                        <tr>
+                            <td><span class="badge badge-tech">{{ task.round }}</span></td>
+                            <td>{{ task.expert.split('@')[0] if '@' in task.expert else task.expert }}</td>
+                            <td><span class="badge badge-subtle">{{ task.team }}</span></td>
+                            <td class="date-cell">{{ task.date }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    {% else %}
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Candidate Funnel Leaderboard</h3>
+            <span class="badge badge-subtle">{{ candidate_stats|length }} candidates</span>
+        </div>
+
+        {% if candidate_stats %}
+        <div class="table-wrapper funnel-table">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Candidate</th>
+                        <th>Lead Team</th>
+                        <th>Lead Expert</th>
+                        <th>Interviews</th>
+                        <th>Screening</th>
+                        <th>1st</th>
+                        <th>2nd</th>
+                        <th>3rd/Tech</th>
+                        <th>Loop</th>
+                        <th>Final</th>
+                        <th>Unique Clients</th>
+                        <th>Scr to 1st</th>
+                        <th>1st to 2nd</th>
+                        <th>2nd to 3rd</th>
+                        <th>3rd to Loop</th>
+                        <th>Loop to Fin</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stat in candidate_stats %}
+                    <tr>
+                        <td><span class="rank-badge {% if stat.rank <= 3 %}top-{{ stat.rank }}{% endif %}">{{ stat.rank }}</span></td>
+                        <td>
+                            <div class="candidate-cell">
+                                <div class="candidate-avatar small">{{ stat.candidate[0]|upper }}</div>
+                                <span class="candidate-name-text">{{ stat.candidate }}</span>
+                            </div>
+                        </td>
+                        <td><span class="badge badge-subtle">{{ stat.lead_team or 'Unmapped' }}</span></td>
+                        <td>{{ stat.lead_expert.split('@')[0] if stat.lead_expert else 'Unassigned' }}</td>
+                        <td class="text-bold">{{ stat.interview_count }}</td>
+                        <td class="stage-cell screening">{{ stat.screening }}</td>
+                        <td class="stage-cell first">{{ stat.first }}</td>
+                        <td class="stage-cell second">{{ stat.second }}</td>
+                        <td class="stage-cell third">{{ stat.third_tech }}</td>
+                        <td class="stage-cell loop">{{ stat.loop_round }}</td>
+                        <td class="stage-cell final">{{ stat.final }}</td>
+                        <td>
+                            {% if po_state == 'ready' %}
+                            <span class="badge badge-subtle">{{ stat.unique_clients or 0 }}</span>
+                            {% elif po_counts_locked %}
+                            <span class="badge badge-subtle">Locked</span>
+                            {% else %}
+                            <span class="badge badge-subtle">N/A</span>
+                            {% endif %}
+                        </td>
+                        <td class="conversion-cell {% if stat.screening_to_1st >= 50 %}good{% elif stat.screening_to_1st >= 25 %}medium{% else %}low{% endif %}">{{ [stat.screening_to_1st, 100]|min }}%</td>
+                        <td class="conversion-cell {% if stat.first_to_2nd >= 50 %}good{% elif stat.first_to_2nd >= 25 %}medium{% else %}low{% endif %}">{{ [stat.first_to_2nd, 100]|min }}%</td>
+                        <td class="conversion-cell {% if stat.second_to_3rd >= 50 %}good{% elif stat.second_to_3rd >= 25 %}medium{% else %}low{% endif %}">{{ [stat.second_to_3rd, 100]|min }}%</td>
+                        <td class="conversion-cell {% if stat.third_to_loop >= 50 %}good{% elif stat.third_to_loop >= 25 %}medium{% else %}low{% endif %}">{{ [stat.third_to_loop, 100]|min }}%</td>
+                        <td class="conversion-cell {% if stat.loop_to_final >= 50 %}good{% elif stat.loop_to_final >= 25 %}medium{% else %}low{% endif %}">{{ [stat.loop_to_final, 100]|min }}%</td>
+                        <td>
+                            <a href="{{ url_for('analytics.candidate_analytics', view_candidate=stat.candidate, start_date=start_date, end_date=end_date, team=selected_team, expert=selected_expert, candidate=selected_candidate) }}"
+                                class="btn btn-ghost btn-sm">View</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>No candidate data found for the selected filters</p>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if candidate_stats %}
+    <div class="chart-card card">
+        <div class="card-header">
+            <h3 class="card-title">Top 10 Candidates - Funnel Performance</h3>
+        </div>
+        <div class="chart-container tall">
+            <canvas id="overviewChart"></canvas>
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block vendor_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.querySelectorAll('.quick-select').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const today = new Date();
+            let startDate, endDate;
+            if (this.dataset.days) {
+                const days = parseInt(this.dataset.days);
+                startDate = new Date(today);
+                startDate.setDate(today.getDate() - days);
+                endDate = today;
+            } else if (this.dataset.range === 'this-month') {
+                startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+                endDate = today;
+            } else if (this.dataset.range === 'last-month') {
+                startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                endDate = new Date(today.getFullYear(), today.getMonth(), 0);
+            } else if (this.dataset.range === 'this-year') {
+                startDate = new Date(today.getFullYear(), 0, 1);
+                endDate = today;
+            }
+
+            const form = document.getElementById('filterForm');
+            form.querySelector('input[name="start_date"]').value = startDate ? startDate.toISOString().split('T')[0] : '';
+            form.querySelector('input[name="end_date"]').value = endDate ? endDate.toISOString().split('T')[0] : '';
+            if (this.dataset.range === 'all-time') {
+                form.querySelector('input[name="start_date"]').value = '';
+                form.querySelector('input[name="end_date"]').value = '';
+            }
+            form.submit();
+        });
+    });
+</script>
+<script>
+    {% if candidate_detail %}
+    const roundCtx = document.getElementById('roundChart').getContext('2d');
+    const roundData = {{ candidate_detail.round_distribution | tojson }};
+    new Chart(roundCtx, {
+        type: 'doughnut',
+        data: {
+            labels: Object.keys(roundData),
+            datasets: [{ data: Object.values(roundData), backgroundColor: ['#3b82f6', '#8b5cf6', '#f97316', '#14b8a6', '#22c55e', '#ec4899'], borderWidth: 0, spacing: 2 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, cutout: '60%', plugins: { legend: { position: 'bottom' } } }
+    });
+
+    const secondaryCtx = document.getElementById('secondaryChart').getContext('2d');
+    {% if po_state == 'ready' and candidate_detail.client_distribution %}
+    const secondaryData = {{ candidate_detail.client_distribution | tojson }};
+    const secondaryLabels = Object.keys(secondaryData);
+    const secondaryValues = Object.values(secondaryData);
+    const secondaryLabel = 'PO records';
+    const secondaryColor = '#14b8a6';
+    {% else %}
+    const secondaryData = {{ candidate_detail.expert_distribution | tojson }};
+    const secondaryLabels = Object.keys(secondaryData).map(name => name.includes('@') ? name.split('@')[0] : name);
+    const secondaryValues = Object.values(secondaryData);
+    const secondaryLabel = 'Completed interviews';
+    const secondaryColor = '#8b5cf6';
+    {% endif %}
+    new Chart(secondaryCtx, {
+        type: 'bar',
+        data: { labels: secondaryLabels, datasets: [{ label: secondaryLabel, data: secondaryValues, backgroundColor: secondaryColor, borderRadius: 6, borderSkipped: false }] },
+        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    });
+    {% elif candidate_stats %}
+    const overviewCtx = document.getElementById('overviewChart').getContext('2d');
+    const candidateStats = {{ candidate_stats[:10] | tojson }};
+    new Chart(overviewCtx, {
+        type: 'bar',
+        data: {
+            labels: candidateStats.map(item => item.candidate),
+            datasets: [
+                { label: 'Screening', data: candidateStats.map(item => item.screening), backgroundColor: '#3b82f6', borderRadius: 4 },
+                { label: '1st Round', data: candidateStats.map(item => item.first), backgroundColor: '#8b5cf6', borderRadius: 4 },
+                { label: 'Final', data: candidateStats.map(item => item.final), backgroundColor: '#22c55e', borderRadius: 4 },
+                { label: 'Unique Clients', data: candidateStats.map(item => item.unique_clients ?? 0), backgroundColor: '#14b8a6', borderRadius: 4 }
+            ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+    });
+    {% endif %}
+</script>
+{% endblock %}

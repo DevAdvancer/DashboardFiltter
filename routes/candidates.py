@@ -2,6 +2,7 @@
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from difflib import SequenceMatcher
+from functools import lru_cache
 from io import BytesIO
 import re
 
@@ -30,7 +31,27 @@ candidates_bp = Blueprint('candidates', __name__)
 
 PO_MATCH_THRESHOLD = 0.8
 PO_RECORDS_CACHE_KEY = "expert_activity_po_records_v2"
-EXPERT_ACTIVITY_CACHE_VERSION = "v4"
+EXPERT_ACTIVITY_CACHE_VERSION = "v6"
+
+SUBJECT_MONTH_MAP = {
+    'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04',
+    'may': '05', 'jun': '06', 'jul': '07', 'aug': '08',
+    'sep': '09', 'sept': '09', 'oct': '10', 'nov': '11', 'dec': '12',
+    'january': '01', 'february': '02', 'march': '03', 'april': '04',
+    'june': '06', 'july': '07', 'august': '08', 'september': '09',
+    'october': '10', 'november': '11', 'december': '12',
+}
+
+SUBJECT_MONTH_TOKEN_PATTERN = (
+    r'Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|'
+    r'Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|'
+    r'Nov(?:ember)?|Dec(?:ember)?'
+)
+
+SUBJECT_WEEKDAY_TOKEN_PATTERN = (
+    r'Mon(?:day)?|Tue(?:s(?:day)?)?|Wed(?:nesday)?|Thu(?:rs(?:day)?)?|'
+    r'Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?'
+)
 
 
 def get_team_options():
@@ -90,16 +111,256 @@ def get_name_match_score(left, right):
 
 
 def get_selected_po_month_key(month_s, year_s):
+    selected_month = parse_selected_activity_month(month_s, year_s)
+    return selected_month.strftime("%Y-%m") if selected_month else ""
+
+
+@lru_cache(maxsize=256)
+def parse_selected_activity_month(month_s, year_s):
     month_text = str(month_s or "").strip().title()
     year_text = str(year_s or "").strip()
 
     if not month_text or not year_text:
-        return ""
+        return None
 
+    for fmt in ("%b %Y", "%B %Y"):
+        try:
+            return datetime.strptime(f"{month_text} {year_text}", fmt)
+        except ValueError:
+            continue
+
+    return None
+
+
+@lru_cache(maxsize=4096)
+def extract_interview_date_candidates_from_subject(subject):
+    if not subject:
+        return ()
+
+    normalized_subject = " ".join(
+        str(subject)
+        .replace("\xa0", " ")
+        .replace("\u202f", " ")
+        .split()
+    )
+    if not normalized_subject:
+        return ()
+
+    candidates = []
+    seen = set()
+
+    def add_candidate(year_value, month_value, day_value):
+        try:
+            candidate = datetime(
+                int(year_value),
+                int(month_value),
+                int(day_value),
+            ).strftime("%Y-%m-%d")
+        except (TypeError, ValueError):
+            return
+
+        if candidate not in seen:
+            seen.add(candidate)
+            candidates.append(candidate)
+
+    month_first_pattern = re.compile(
+        rf'\b(?:(?:{SUBJECT_WEEKDAY_TOKEN_PATTERN})\.?,?\s+)?({SUBJECT_MONTH_TOKEN_PATTERN})\.?\s*(?:,)?\s*(\d{{1,2}})(?:st|nd|rd|th)?\s*(?:,)?\s*(\d{{4}})\b',
+        re.IGNORECASE,
+    )
+    day_first_pattern = re.compile(
+        rf'\b(?:(?:{SUBJECT_WEEKDAY_TOKEN_PATTERN})\.?,?\s+)?(\d{{1,2}})(?:st|nd|rd|th)?\s+({SUBJECT_MONTH_TOKEN_PATTERN})\.?\s*(?:,)?\s*(\d{{4}})\b',
+        re.IGNORECASE,
+    )
+    iso_pattern = re.compile(r'\b(\d{4})[/-](\d{1,2})[/-](\d{1,2})\b')
+    numeric_pattern = re.compile(r'\b(\d{1,2})[/-](\d{1,2})[/-](\d{4})\b')
+    numeric_short_year_pattern = re.compile(r'\b(\d{1,2})[/-](\d{1,2})[/-](\d{2})\b')
+
+    for month_str, day, year in month_first_pattern.findall(normalized_subject):
+        month = SUBJECT_MONTH_MAP.get(month_str.lower().rstrip('.'))
+        if month:
+            add_candidate(year, month, day)
+
+    for day, month_str, year in day_first_pattern.findall(normalized_subject):
+        month = SUBJECT_MONTH_MAP.get(month_str.lower().rstrip('.'))
+        if month:
+            add_candidate(year, month, day)
+
+    for year, month, day in iso_pattern.findall(normalized_subject):
+        add_candidate(year, month, day)
+
+    for first, second, year in numeric_pattern.findall(normalized_subject):
+        first_num = int(first)
+        second_num = int(second)
+
+        if 1 <= first_num <= 12 and 1 <= second_num <= 31:
+            add_candidate(year, first_num, second_num)
+        if 1 <= first_num <= 31 and 1 <= second_num <= 12:
+            add_candidate(year, second_num, first_num)
+
+    for first, second, year in numeric_short_year_pattern.findall(normalized_subject):
+        expanded_year = f"20{year}"
+        first_num = int(first)
+        second_num = int(second)
+
+        if 1 <= first_num <= 12 and 1 <= second_num <= 31:
+            add_candidate(expanded_year, first_num, second_num)
+        if 1 <= first_num <= 31 and 1 <= second_num <= 12:
+            add_candidate(expanded_year, second_num, first_num)
+
+    return tuple(candidates)
+
+
+def parse_interview_date_from_subject(subject, reference_date=None):
+    """
+    Extract interview date from subject line and return YYYY-MM-DD.
+    """
+    candidates = extract_interview_date_candidates_from_subject(subject)
+    if not candidates:
+        candidates = ()
+
+    reference_value = str(reference_date or "").strip()[:10]
     try:
-        return datetime.strptime(f"{month_text} {year_text}", "%b %Y").strftime("%Y-%m")
+        reference_dt = datetime.strptime(reference_value, "%Y-%m-%d")
     except ValueError:
-        return ""
+        reference_dt = None
+
+    if not candidates and reference_dt:
+        normalized_subject = " ".join(
+            str(subject or "")
+            .replace("\xa0", " ")
+            .replace("\u202f", " ")
+            .split()
+        )
+        inferred_candidates = []
+        seen = set()
+
+        def add_inferred_candidate(year_value, month_value, day_value):
+            try:
+                candidate = datetime(
+                    int(year_value),
+                    int(month_value),
+                    int(day_value),
+                ).strftime("%Y-%m-%d")
+            except (TypeError, ValueError):
+                return
+
+            if candidate not in seen:
+                seen.add(candidate)
+                inferred_candidates.append(candidate)
+
+        month_first_partial_year_pattern = re.compile(
+            rf'\b(?:(?:{SUBJECT_WEEKDAY_TOKEN_PATTERN})\.?,?\s+)?({SUBJECT_MONTH_TOKEN_PATTERN})\.?\s*(\d{{1,2}})(?:st|nd|rd|th)?\s*(?:,)?\s*(\d{{3}})\b',
+            re.IGNORECASE,
+        )
+        day_first_partial_year_pattern = re.compile(
+            rf'\b(?:(?:{SUBJECT_WEEKDAY_TOKEN_PATTERN})\.?,?\s+)?(\d{{1,2}})(?:st|nd|rd|th)?\s+({SUBJECT_MONTH_TOKEN_PATTERN})\.?\s*(?:,)?\s*(\d{{3}})\b',
+            re.IGNORECASE,
+        )
+        month_first_no_year_pattern = re.compile(
+            rf'\b(?:(?:{SUBJECT_WEEKDAY_TOKEN_PATTERN})\.?,?\s+)?({SUBJECT_MONTH_TOKEN_PATTERN})\.?\s*(\d{{1,2}})(?:st|nd|rd|th)?\b',
+            re.IGNORECASE,
+        )
+        day_first_no_year_pattern = re.compile(
+            rf'\b(?:(?:{SUBJECT_WEEKDAY_TOKEN_PATTERN})\.?,?\s+)?(\d{{1,2}})(?:st|nd|rd|th)?\s+({SUBJECT_MONTH_TOKEN_PATTERN})\.?\b',
+            re.IGNORECASE,
+        )
+
+        for month_str, day, year_fragment in month_first_partial_year_pattern.findall(normalized_subject):
+            if str(reference_dt.year).startswith(year_fragment):
+                month = SUBJECT_MONTH_MAP.get(month_str.lower().rstrip('.'))
+                if month:
+                    add_inferred_candidate(reference_dt.year, month, day)
+
+        for day, month_str, year_fragment in day_first_partial_year_pattern.findall(normalized_subject):
+            if str(reference_dt.year).startswith(year_fragment):
+                month = SUBJECT_MONTH_MAP.get(month_str.lower().rstrip('.'))
+                if month:
+                    add_inferred_candidate(reference_dt.year, month, day)
+
+        if not inferred_candidates:
+            for month_str, day in month_first_no_year_pattern.findall(normalized_subject):
+                month = SUBJECT_MONTH_MAP.get(month_str.lower().rstrip('.'))
+                if month:
+                    add_inferred_candidate(reference_dt.year, month, day)
+
+            for day, month_str in day_first_no_year_pattern.findall(normalized_subject):
+                month = SUBJECT_MONTH_MAP.get(month_str.lower().rstrip('.'))
+                if month:
+                    add_inferred_candidate(reference_dt.year, month, day)
+
+        candidates = tuple(inferred_candidates)
+
+    if not candidates:
+        return None
+
+    if len(candidates) == 1 or not reference_dt:
+        return candidates[0]
+
+    def candidate_distance(candidate_value):
+        try:
+            candidate_dt = datetime.strptime(candidate_value, "%Y-%m-%d")
+        except ValueError:
+            return (float("inf"), candidate_value)
+        return (abs((candidate_dt - reference_dt).days), candidate_value)
+
+    return min(candidates, key=candidate_distance)
+
+
+def build_selected_month_subject_regex(month_s, year_s):
+    selected_month = parse_selected_activity_month(month_s, year_s)
+    if not selected_month:
+        return None
+
+    month_tokens = [selected_month.strftime("%b"), selected_month.strftime("%B")]
+    if selected_month.strftime("%b") == "Sep":
+        month_tokens.append("Sept")
+
+    month_pattern = "|".join(re.escape(token) for token in month_tokens)
+    numeric_month_pattern = rf"(?:0?{selected_month.month}|{selected_month.strftime('%m')})"
+    return (
+        rf"(?:"
+        rf"\b(?:(?:{SUBJECT_WEEKDAY_TOKEN_PATTERN})\.?,?\s+)?(?:{month_pattern})\.?\s*\d{{1,2}}(?:st|nd|rd|th)?\s*(?:,)?\s*{selected_month.year}\b"
+        rf"|"
+        rf"\b(?:(?:{SUBJECT_WEEKDAY_TOKEN_PATTERN})\.?,?\s+)?\d{{1,2}}(?:st|nd|rd|th)?\s+(?:{month_pattern})\.?\s*(?:,)?\s*{selected_month.year}\b"
+        rf"|"
+        rf"\b{selected_month.year}[/-]{numeric_month_pattern}[/-]\d{{1,2}}\b"
+        rf"|"
+        rf"\b{numeric_month_pattern}[/-]\d{{1,2}}[/-]{selected_month.year}\b"
+        rf"|"
+        rf"\b\d{{1,2}}[/-]{numeric_month_pattern}[/-]{selected_month.year}\b"
+        rf")"
+    )
+
+
+def build_selected_month_received_date_match(month_s, year_s):
+    selected_month = parse_selected_activity_month(month_s, year_s)
+    if not selected_month:
+        return None
+
+    if selected_month.month == 12:
+        next_month = selected_month.replace(year=selected_month.year + 1, month=1)
+    else:
+        next_month = selected_month.replace(month=selected_month.month + 1)
+
+    return {
+        "$gte": selected_month.strftime("%Y-%m-01T00:00:00"),
+        "$lt": next_month.strftime("%Y-%m-01T00:00:00"),
+    }
+
+
+def interview_matches_selected_month(interview_detail, selected_month_key):
+    if not selected_month_key:
+        return True
+
+    subject_date = parse_interview_date_from_subject(
+        interview_detail.get("Subject", ""),
+        reference_date=interview_detail.get("Date", ""),
+    )
+    if not subject_date:
+        received_value = str(interview_detail.get("Date", "") or "").strip()
+        return received_value.startswith(selected_month_key)
+
+    return subject_date.startswith(selected_month_key)
 
 
 def get_cached_po_records():
@@ -404,10 +665,20 @@ def fetch_expert_activity_data(month_s, year_s, status_f, team_f=None, expert_f=
             if expert_clean:
                 displayed_experts.append(expert_clean)
 
-    # Prepare match query for interviews based on Subject and Status
-    match_query = {
-        "subject": {"$regex": f"{month_s}.*{year_s}", "$options": "i"}
-    }
+    # Pre-filter to the selected month using subject dates when available, while
+    # keeping receivedDateTime as a safety net for malformed legacy subjects.
+    subject_month_regex = build_selected_month_subject_regex(month_s, year_s)
+    received_month_match = build_selected_month_received_date_match(month_s, year_s)
+    match_query = {}
+    month_filters = []
+    if subject_month_regex:
+        month_filters.append({"subject": {"$regex": subject_month_regex, "$options": "i"}})
+    if received_month_match:
+        month_filters.append({"receivedDateTime": received_month_match})
+    if len(month_filters) == 1:
+        match_query.update(month_filters[0])
+    elif month_filters:
+        match_query["$or"] = month_filters
 
     if status_f:
         match_query["status"] = status_f
@@ -490,7 +761,18 @@ def fetch_expert_activity_data(month_s, year_s, status_f, team_f=None, expert_f=
     ]
 
     interview_results = list(db.taskBody.aggregate(interview_pipeline))
-    candidate_interview_map = {r['_id']: {'count': r['InterviewCount'], 'details': r.get('InterviewDetails', [])} for r in interview_results}
+    selected_month_key = get_selected_po_month_key(month_s, year_s)
+    candidate_interview_map = {}
+    for result in interview_results:
+        filtered_details = [
+            detail
+            for detail in result.get('InterviewDetails', [])
+            if interview_matches_selected_month(detail, selected_month_key)
+        ]
+        candidate_interview_map[result['_id']] = {
+            'count': len(filtered_details),
+            'details': filtered_details,
+        }
 
     # Build per_candidate and per_expert lists
     per_candidate = []

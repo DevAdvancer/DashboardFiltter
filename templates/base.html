@@ -76,6 +76,15 @@
                         </svg>
                         <span>Expert Analytics</span>
                     </a>
+                    <a href="{{ url_for('analytics.candidate_analytics') }}"
+                        class="nav-link {% if request.endpoint == 'analytics.candidate_analytics' %}active{% endif %}">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <circle cx="12" cy="8" r="4" />
+                            <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
+                            <path d="M9 11h6" />
+                        </svg>
+                        <span>Candidate Analytics</span>
+                    </a>
                     <a href="{{ url_for('analytics.team_analytics') }}"
                         class="nav-link {% if request.endpoint == 'analytics.team_analytics' %}active{% endif %}">
                         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">

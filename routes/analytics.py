@@ -8,6 +8,7 @@ import re
 import json
 from io import BytesIO
 from po_security import (
+    current_request_next_url,
     filter_records_for_po_access,
     get_current_po_access,
     po_pin_security_enabled,
@@ -16,18 +17,20 @@ from routes.po import fetch_po_records, get_supabase_client
 from services.reference_data import (
     get_active_expert_emails,
     get_active_task_experts,
+    get_candidate_lookup_names,
     get_export_filter_options,
     get_teams_reference,
 )
 from services.team_management import (
     clean_text,
     get_team_management_directory,
+    mongo_normalized_text,
     normalize_lookup_text,
     resolve_expert_management,
 )
 
 analytics_bp = Blueprint('analytics', __name__)
-ANALYTICS_CACHE_VERSION = "v6"
+ANALYTICS_CACHE_VERSION = "v9"
 
 # Round mapping from actualRound to funnel stages
 ROUND_BUCKETS = {
@@ -69,6 +72,26 @@ INTERVIEW_STATUS_BUCKETS = {
     "assigned": "Not Done",
     "pending": "Not Done",
 }
+
+SUBJECT_MONTH_MAP = {
+    'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04',
+    'may': '05', 'jun': '06', 'jul': '07', 'aug': '08',
+    'sep': '09', 'sept': '09', 'oct': '10', 'nov': '11', 'dec': '12',
+    'january': '01', 'february': '02', 'march': '03', 'april': '04',
+    'june': '06', 'july': '07', 'august': '08', 'september': '09',
+    'october': '10', 'november': '11', 'december': '12',
+}
+
+SUBJECT_MONTH_TOKEN_PATTERN = (
+    r'Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|'
+    r'Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|'
+    r'Nov(?:ember)?|Dec(?:ember)?'
+)
+
+SUBJECT_WEEKDAY_TOKEN_PATTERN = (
+    r'Mon(?:day)?|Tue(?:s(?:day)?)?|Wed(?:nesday)?|Thu(?:rs(?:day)?)?|'
+    r'Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?'
+)
 
 
 def normalize_round(r):
@@ -160,8 +183,23 @@ def build_interview_stats_match(start_date="", end_date=""):
     }
 
 
-def normalize_interview_status_bucket(status_value):
-    return INTERVIEW_STATUS_BUCKETS.get(normalize_lookup_text(status_value))
+def build_interview_activity_match(statuses=None):
+    match_query = {
+        "actualRound": {"$nin": INTERVIEW_STATS_ROUND_EXCLUSIONS},
+        "assignedTo": {"$type": "string", "$ne": ""},
+    }
+    if statuses:
+        normalized_statuses = [str(status).strip() for status in statuses if str(status).strip()]
+        if len(normalized_statuses) == 1:
+            match_query["status"] = normalized_statuses[0]
+        elif normalized_statuses:
+            match_query["status"] = {"$in": normalized_statuses}
+    return match_query
+
+
+def normalize_interview_status_bucket(status_value, default_bucket=None):
+    normalized_bucket = INTERVIEW_STATUS_BUCKETS.get(normalize_lookup_text(status_value))
+    return normalized_bucket or default_bucket
 
 
 def resolve_interview_stats_expert_key(raw_expert, active_experts, expert_team_map, directory=None):
@@ -217,7 +255,7 @@ def aggregate_interview_stats_by_expert(db, start_date="", end_date="", active_e
         expert_team_map = get_expert_team_map(db)[0]
 
     expert_stats_map = {}
-    for record in get_completed_interview_records(
+    for record in get_interview_stats_records(
         db,
         start_date=start_date,
         end_date=end_date,
@@ -237,7 +275,15 @@ def aggregate_interview_stats_by_expert(db, start_date="", end_date="", active_e
                 "TotalInterviews": 0,
             },
         )
-        stats["CompletedCount"] += 1
+        status_bucket = record["status_bucket"]
+        if status_bucket == "Completed":
+            stats["CompletedCount"] += 1
+        elif status_bucket == "Cancelled":
+            stats["CancelledCount"] += 1
+        elif status_bucket == "Rescheduled":
+            stats["RescheduledCount"] += 1
+        else:
+            stats["NotDoneCount"] += 1
         stats["TotalInterviews"] += 1
 
     return expert_stats_map
@@ -278,6 +324,39 @@ def get_completed_interview_filter_options(db):
 
     teams_list = sorted(teams_map_view.keys())
     experts = sorted({record["expert_key"] for record in records})
+    value = (teams_list, experts, {team: sorted(members) for team, members in teams_map_view.items()})
+    if cache:
+        cache.set(cache_key, value, timeout=300)
+    return value
+
+
+def get_interview_stats_filter_options(db):
+    cache_key = analytics_cache_key("interview-stats-filter-options")
+    cache = getattr(current_app, "cache", None) if has_app_context() else None
+    if cache:
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+    expert_team_map, teams_map = get_expert_team_map(db)
+    directory = get_team_management_directory()
+    teams_map_view = defaultdict(set)
+    for team_name, members in teams_map.items():
+        teams_map_view[team_name].update(members)
+
+    raw_experts = db.taskBody.distinct("assignedTo", build_interview_stats_match())
+    for raw_expert in raw_experts:
+        context = resolve_completed_interview_context(
+            raw_expert,
+            expert_team_map,
+            directory=directory,
+        )
+        if not context:
+            continue
+        teams_map_view[context["team_name"]].add(context["expert_key"])
+
+    teams_list = sorted(teams_map_view.keys())
+    experts = sorted({member for members in teams_map_view.values() for member in members})
     value = (teams_list, experts, {team: sorted(members) for team, members in teams_map_view.items()})
     if cache:
         cache.set(cache_key, value, timeout=300)
@@ -367,6 +446,107 @@ def get_po_count_maps(start_date="", end_date=""):
             "team_counts": {},
             "expert_counts": {},
             "total": None,
+        }
+
+    current_app.cache.set(cache_key, value, timeout=300)
+    return value
+
+
+def get_candidate_client_maps(start_date="", end_date="", filter_team=None, filter_expert=None):
+    cache_key = analytics_cache_key(
+        "candidate-client-maps",
+        start_date,
+        end_date,
+        filter_team,
+        filter_expert,
+        get_po_access_cache_token(),
+    )
+    cached = current_app.cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    access = get_current_po_access()
+    if po_pin_security_enabled() and not access:
+        value = {
+            "state": "locked",
+            "clients_by_candidate": {},
+            "client_counts_by_candidate": {},
+            "total_unique_clients": None,
+            "total_po_records": None,
+            "error": "",
+        }
+        current_app.cache.set(cache_key, value, timeout=300)
+        return value
+
+    try:
+        records = filter_records_for_po_access(fetch_po_records(get_supabase_client()), access)
+        start_value = start_date[:10] if start_date else ""
+        end_value = end_date[:10] if end_date else ""
+        filter_expert_key = normalize_lookup_text(filter_expert)
+
+        filtered_records = [
+            record
+            for record in records
+            if (
+                not start_value
+                or (
+                    record.get("mail_date")
+                    and str(record.get("mail_date")) >= start_value
+                )
+            )
+            and (
+                not end_value
+                or (
+                    record.get("mail_date")
+                    and str(record.get("mail_date")) <= end_value
+                )
+            )
+            and (
+                not filter_team
+                or record.get("team_name") == filter_team
+            )
+            and (
+                not filter_expert_key
+                or normalize_lookup_text(record.get("expert_email")) == filter_expert_key
+            )
+        ]
+
+        client_counts_by_candidate = defaultdict(Counter)
+        all_clients = set()
+
+        for record in filtered_records:
+            candidate_key = record.get("candidate_name_key") or normalize_lookup_text(record.get("candidate_name"))
+            client_name = clean_text(record.get("client"))
+            if not candidate_key or not client_name:
+                continue
+
+            client_counts_by_candidate[candidate_key][client_name] += 1
+            all_clients.add(client_name)
+
+        value = {
+            "state": "ready",
+            "clients_by_candidate": {
+                candidate_key: sorted(counter.keys())
+                for candidate_key, counter in client_counts_by_candidate.items()
+            },
+            "client_counts_by_candidate": {
+                candidate_key: dict(
+                    sorted(counter.items(), key=lambda item: (-item[1], item[0]))
+                )
+                for candidate_key, counter in client_counts_by_candidate.items()
+            },
+            "total_unique_clients": len(all_clients),
+            "total_po_records": len(filtered_records),
+            "error": "",
+        }
+    except Exception as exc:
+        value = {
+            "state": "unavailable",
+            "clients_by_candidate": {},
+            "client_counts_by_candidate": {},
+            "total_unique_clients": 0,
+            "total_po_records": 0,
+            "error": str(exc) or "Unable to load PO-backed client data.",
         }
 
     current_app.cache.set(cache_key, value, timeout=300)
@@ -492,6 +672,214 @@ def get_expert_funnel_data(db, start_date='', end_date='', filter_team=None, fil
 
     value = (expert_stats, teams_map)
     cache.set(cache_key, value, timeout=300)
+    return value
+
+
+def get_candidate_funnel_data(
+    db,
+    start_date='',
+    end_date='',
+    filter_team=None,
+    filter_expert=None,
+    filter_candidate=None,
+):
+    cache = current_app.cache
+    cache_key = analytics_cache_key(
+        "candidate-funnel",
+        start_date,
+        end_date,
+        filter_team,
+        filter_expert,
+        filter_candidate,
+        get_po_access_cache_token(),
+    )
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    filter_expert_key = normalize_lookup_text(filter_expert)
+    filter_candidate_key = normalize_lookup_text(filter_candidate)
+    expert_team_map, teams_map = get_expert_team_map(db)
+    client_data = get_candidate_client_maps(start_date, end_date, filter_team, filter_expert)
+
+    match_filters = build_task_query(start_date, end_date)
+    if filter_candidate_key:
+        match_filters["$expr"] = {
+            "$eq": [
+                mongo_normalized_text("Candidate Name"),
+                filter_candidate_key,
+            ]
+        }
+
+    round_rows = list(
+        db.taskBody.aggregate(
+            [
+                {"$match": match_filters},
+                {
+                    "$group": {
+                        "_id": {
+                            "candidate": "$Candidate Name",
+                            "expert": "$assignedTo",
+                            "round": "$actualRound",
+                        },
+                        "count": {"$sum": 1},
+                    }
+                },
+            ],
+            allowDiskUse=True,
+        )
+    )
+
+    candidate_stage_counts = defaultdict(lambda: Counter())
+    candidate_name_counts = defaultdict(Counter)
+    candidate_expert_counts = defaultdict(Counter)
+    candidate_team_counts = defaultdict(Counter)
+
+    for row in round_rows:
+        row_id = row.get("_id") or {}
+        candidate_name = clean_text(row_id.get("candidate"))
+        candidate_key = normalize_lookup_text(candidate_name)
+        expert_key = normalize_lookup_text(row_id.get("expert"))
+        if not candidate_key:
+            continue
+
+        team_name = expert_team_map.get(expert_key, "Unmapped") if expert_key else "Unmapped"
+        if filter_team and team_name != filter_team:
+            continue
+        if filter_expert_key and expert_key != filter_expert_key:
+            continue
+
+        stage = normalize_round(row_id.get("round"))
+        if not stage:
+            continue
+
+        count = row.get("count", 0)
+        candidate_stage_counts[candidate_key][stage] += count
+        candidate_name_counts[candidate_key][candidate_name or "Unknown"] += count
+
+        if expert_key:
+            candidate_expert_counts[candidate_key][expert_key] += count
+        if team_name:
+            candidate_team_counts[candidate_key][team_name] += count
+
+    client_counts_by_candidate = client_data.get("client_counts_by_candidate", {})
+    candidate_stats = []
+
+    for candidate_key, stages in candidate_stage_counts.items():
+        name_counter = candidate_name_counts.get(candidate_key, Counter())
+        expert_counter = candidate_expert_counts.get(candidate_key, Counter())
+        team_counter = candidate_team_counts.get(candidate_key, Counter())
+        client_counts = client_counts_by_candidate.get(candidate_key, {})
+
+        candidate_stats.append({
+            "candidate_key": candidate_key,
+            "candidate": name_counter.most_common(1)[0][0] if name_counter else "Unknown",
+            "lead_team": team_counter.most_common(1)[0][0] if team_counter else "",
+            "lead_expert": expert_counter.most_common(1)[0][0] if expert_counter else "",
+            "teams_count": len(team_counter),
+            "experts_count": len(expert_counter),
+            "unique_clients": len(client_counts) if client_data.get("state") == "ready" else None,
+            "po_count": sum(client_counts.values()) if client_data.get("state") == "ready" else None,
+            "client_names": sorted(client_counts.keys()),
+            **build_funnel_metrics(stages),
+        })
+
+    candidate_stats.sort(
+        key=lambda item: (
+            item["unique_clients"] or 0,
+            item["screening_to_1st"],
+            item["interview_count"],
+            item["final"],
+        ),
+        reverse=True,
+    )
+
+    for idx, stat in enumerate(candidate_stats):
+        stat["rank"] = idx + 1
+
+    value = (candidate_stats, teams_map, client_data)
+    cache.set(cache_key, value, timeout=300)
+    return value
+
+
+def get_candidate_detail_data(
+    db,
+    candidate_key,
+    start_date='',
+    end_date='',
+    filter_team=None,
+    filter_expert=None,
+):
+    cache_key = analytics_cache_key(
+        "candidate-detail",
+        start_date,
+        end_date,
+        filter_team,
+        filter_expert,
+        candidate_key,
+    )
+    cached = current_app.cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    expert_team_map, _ = get_expert_team_map(db)
+    filter_expert_key = normalize_lookup_text(filter_expert)
+    task_query = build_task_query(start_date, end_date)
+    task_query["$expr"] = {
+        "$eq": [
+            mongo_normalized_text("Candidate Name"),
+            candidate_key,
+        ]
+    }
+
+    raw_tasks = list(
+        db.taskBody.find(
+            task_query,
+            {
+                "Candidate Name": 1,
+                "actualRound": 1,
+                "assignedTo": 1,
+                "receivedDateTime": 1,
+            },
+        ).sort("receivedDateTime", -1).limit(100)
+    )
+
+    candidate_tasks = []
+    round_distribution = Counter()
+    expert_distribution = Counter()
+
+    for task in raw_tasks:
+        expert_value = clean_text(task.get("assignedTo"))
+        expert_key = normalize_lookup_text(expert_value)
+        team_name = expert_team_map.get(expert_key, "Unmapped") if expert_key else "Unmapped"
+        if filter_team and team_name != filter_team:
+            continue
+        if filter_expert_key and expert_key != filter_expert_key:
+            continue
+
+        stage = normalize_round(task.get("actualRound"))
+        if stage:
+            round_distribution[stage] += 1
+        if expert_value:
+            expert_distribution[expert_value] += 1
+
+        candidate_tasks.append({
+            "round": clean_text(task.get("actualRound")) or "Unknown",
+            "expert": expert_value or "Unassigned",
+            "team": team_name,
+            "date": (task.get("receivedDateTime") or "")[:10] if task.get("receivedDateTime") else "-",
+        })
+
+    value = {
+        "candidate_tasks": candidate_tasks[:25],
+        "round_distribution": {
+            stage: round_distribution[stage]
+            for stage in PIPELINE_ORDER
+            if round_distribution.get(stage)
+        },
+        "expert_distribution": dict(expert_distribution.most_common(10)),
+    }
+    current_app.cache.set(cache_key, value, timeout=300)
     return value
 
 
@@ -637,6 +1025,131 @@ def expert_analytics():
     )
 
 
+@analytics_bp.route('/candidates')
+def candidate_analytics():
+    db = get_db()
+    start_date, end_date = get_date_filter_strings()
+
+    filter_team = request.args.get('team', '') or None
+    filter_expert = normalize_lookup_text(request.args.get('expert', '')) or None
+    filter_candidate_name = clean_text(request.args.get('candidate', ''))
+    filter_candidate = normalize_lookup_text(filter_candidate_name) or None
+
+    teams_list, all_experts, _ = get_analytics_filter_options(completed_only=True)
+    all_candidates = sorted(
+        {
+            name
+            for name in [
+                *get_candidate_lookup_names(limit=2000),
+                filter_candidate_name,
+                clean_text(request.args.get('view_candidate', '')),
+            ]
+            if name
+        }
+    )
+
+    candidate_stats, _, client_data = get_candidate_funnel_data(
+        db,
+        start_date,
+        end_date,
+        filter_team,
+        filter_expert,
+        filter_candidate,
+    )
+
+    selected_candidate_name = clean_text(request.args.get('view_candidate', ''))
+    selected_candidate = normalize_lookup_text(selected_candidate_name)
+    candidate_detail = None
+    candidate_tasks = []
+
+    if selected_candidate:
+        for stat in candidate_stats:
+            if stat["candidate_key"] == selected_candidate:
+                candidate_detail = dict(stat)
+                break
+
+        if not candidate_detail:
+            single_stats, _, _ = get_candidate_funnel_data(
+                db,
+                start_date,
+                end_date,
+                filter_team,
+                filter_expert,
+                selected_candidate,
+            )
+            if single_stats:
+                candidate_detail = dict(single_stats[0])
+
+        if candidate_detail:
+            detail_data = get_candidate_detail_data(
+                db,
+                selected_candidate,
+                start_date,
+                end_date,
+                filter_team,
+                filter_expert,
+            )
+            client_distribution = client_data.get("client_counts_by_candidate", {}).get(selected_candidate, {})
+            candidate_tasks = detail_data.get("candidate_tasks", [])
+            candidate_detail["round_distribution"] = detail_data.get("round_distribution", {})
+            candidate_detail["expert_distribution"] = detail_data.get("expert_distribution", {})
+            candidate_detail["client_distribution"] = client_distribution
+            candidate_detail["client_names"] = sorted(client_distribution.keys())
+            candidate_detail["unique_clients"] = (
+                len(client_distribution) if client_data.get("state") == "ready" else None
+            )
+            candidate_detail["po_count"] = (
+                sum(client_distribution.values()) if client_data.get("state") == "ready" else None
+            )
+
+    return render_template(
+        'candidate_analytics.html',
+        candidate_stats=candidate_stats,
+        teams=teams_list,
+        experts=all_experts,
+        candidates=all_candidates,
+        selected_team=filter_team or '',
+        selected_expert=filter_expert or '',
+        selected_candidate=filter_candidate_name,
+        view_candidate=selected_candidate_name,
+        candidate_detail=candidate_detail,
+        candidate_tasks=candidate_tasks,
+        start_date=start_date,
+        end_date=end_date,
+        total_candidates=len(candidate_stats),
+        po_state=client_data.get("state", "ready"),
+        po_counts_locked=client_data.get("state") == "locked",
+        po_unlock_url=url_for('po.po_access', next=current_request_next_url()) if client_data.get("state") == "locked" else '',
+        po_client_error=client_data.get("error", ''),
+        total_unique_clients=client_data.get("total_unique_clients"),
+        total_po_records=client_data.get("total_po_records"),
+    )
+
+
+@analytics_bp.route('/candidates/export')
+def export_candidate_analytics():
+    db = get_db()
+    start_date = request.args.get('start_date', '')
+    end_date = request.args.get('end_date', '')
+    filter_team = request.args.get('team', '') or None
+    filter_expert = normalize_lookup_text(request.args.get('expert', '')) or None
+    candidate_name = clean_text(request.args.get('candidate') or request.args.get('view_candidate'))
+    filter_candidate = normalize_lookup_text(candidate_name) or None
+    export_format = (request.args.get('format') or 'excel').lower()
+    if export_format not in {'excel', 'csv'}:
+        export_format = 'excel'
+
+    candidate_stats, _, client_data = get_candidate_funnel_data(
+        db,
+        start_date,
+        end_date,
+        filter_team,
+        filter_expert,
+        filter_candidate,
+    )
+    return export_candidate_analytics_excel(candidate_stats, client_data, start_date, end_date, export_format)
+
+
 @analytics_bp.route('/teams')
 def team_analytics():
     db = get_db()
@@ -711,7 +1224,7 @@ def interview_stats():
     filter_expert = normalize_lookup_text(request.args.get('expert', '')) or None
 
     expert_team_map, teams_map = get_expert_team_map(db)
-    teams_list, all_experts, _ = get_completed_interview_filter_options(db)
+    teams_list, all_experts, _ = get_interview_stats_filter_options(db)
     po_counts = get_po_count_maps(start_date, end_date)
 
     cache_key = analytics_cache_key(
@@ -819,43 +1332,195 @@ def interview_stats():
     )
 
 @lru_cache(maxsize=4096)
-def parse_interview_date_from_subject(subject):
+def extract_interview_date_candidates_from_subject(subject):
     """
-    Extract interview date from subject line.
-    Example subjects:
-    - "Interview Support - Revanth Vatturi - Data Analyst - Feb 2, 2026 at 03:00 PM EST"
-    - "Interview Support - Nagaraju Nagam - Devops Engineer - Jan 30, 2026 at 03:00 PM EST"
-    Returns date string in YYYY-MM-DD format or None if not found.
+    Extract possible interview dates from a subject line.
     """
     if not subject:
+        return ()
+
+    normalized_subject = " ".join(
+        str(subject)
+        .replace("\xa0", " ")
+        .replace("\u202f", " ")
+        .split()
+    )
+    if not normalized_subject:
+        return ()
+
+    candidates = []
+    seen = set()
+
+    def add_candidate(year_value, month_value, day_value):
+        try:
+            candidate = datetime(
+                int(year_value),
+                int(month_value),
+                int(day_value),
+            ).strftime("%Y-%m-%d")
+        except (TypeError, ValueError):
+            return
+
+        if candidate not in seen:
+            seen.add(candidate)
+            candidates.append(candidate)
+
+    month_first_pattern = re.compile(
+        rf'\b(?:(?:{SUBJECT_WEEKDAY_TOKEN_PATTERN})\.?,?\s+)?({SUBJECT_MONTH_TOKEN_PATTERN})\.?\s*(?:,)?\s*(\d{{1,2}})(?:st|nd|rd|th)?\s*(?:,)?\s*(\d{{4}})\b',
+        re.IGNORECASE,
+    )
+    day_first_pattern = re.compile(
+        rf'\b(?:(?:{SUBJECT_WEEKDAY_TOKEN_PATTERN})\.?,?\s+)?(\d{{1,2}})(?:st|nd|rd|th)?\s+({SUBJECT_MONTH_TOKEN_PATTERN})\.?\s*(?:,)?\s*(\d{{4}})\b',
+        re.IGNORECASE,
+    )
+    iso_pattern = re.compile(r'\b(\d{4})[/-](\d{1,2})[/-](\d{1,2})\b')
+    numeric_pattern = re.compile(r'\b(\d{1,2})[/-](\d{1,2})[/-](\d{4})\b')
+    numeric_short_year_pattern = re.compile(r'\b(\d{1,2})[/-](\d{1,2})[/-](\d{2})\b')
+
+    for month_str, day, year in month_first_pattern.findall(normalized_subject):
+        month = SUBJECT_MONTH_MAP.get(month_str.lower().rstrip('.'))
+        if month:
+            add_candidate(year, month, day)
+
+    for day, month_str, year in day_first_pattern.findall(normalized_subject):
+        month = SUBJECT_MONTH_MAP.get(month_str.lower().rstrip('.'))
+        if month:
+            add_candidate(year, month, day)
+
+    for year, month, day in iso_pattern.findall(normalized_subject):
+        add_candidate(year, month, day)
+
+    for first, second, year in numeric_pattern.findall(normalized_subject):
+        first_num = int(first)
+        second_num = int(second)
+
+        if 1 <= first_num <= 12 and 1 <= second_num <= 31:
+            add_candidate(year, first_num, second_num)
+        if 1 <= first_num <= 31 and 1 <= second_num <= 12:
+            add_candidate(year, second_num, first_num)
+
+    for first, second, year in numeric_short_year_pattern.findall(normalized_subject):
+        expanded_year = f"20{year}"
+        first_num = int(first)
+        second_num = int(second)
+
+        if 1 <= first_num <= 12 and 1 <= second_num <= 31:
+            add_candidate(expanded_year, first_num, second_num)
+        if 1 <= first_num <= 31 and 1 <= second_num <= 12:
+            add_candidate(expanded_year, second_num, first_num)
+
+    return tuple(candidates)
+
+
+def parse_interview_date_from_subject(subject, reference_date=None):
+    """
+    Extract interview date from subject line and return YYYY-MM-DD.
+    """
+    candidates = extract_interview_date_candidates_from_subject(subject)
+    if not candidates:
+        candidates = ()
+
+    reference_value = str(reference_date or "").strip()[:10]
+    try:
+        reference_dt = datetime.strptime(reference_value, "%Y-%m-%d")
+    except ValueError:
+        reference_dt = None
+
+    if not candidates and reference_dt:
+        normalized_subject = " ".join(
+            str(subject or "")
+            .replace("\xa0", " ")
+            .replace("\u202f", " ")
+            .split()
+        )
+        inferred_candidates = []
+        seen = set()
+
+        def add_inferred_candidate(year_value, month_value, day_value):
+            try:
+                candidate = datetime(
+                    int(year_value),
+                    int(month_value),
+                    int(day_value),
+                ).strftime("%Y-%m-%d")
+            except (TypeError, ValueError):
+                return
+
+            if candidate not in seen:
+                seen.add(candidate)
+                inferred_candidates.append(candidate)
+
+        month_first_partial_year_pattern = re.compile(
+            rf'\b(?:(?:{SUBJECT_WEEKDAY_TOKEN_PATTERN})\.?,?\s+)?({SUBJECT_MONTH_TOKEN_PATTERN})\.?\s*(\d{{1,2}})(?:st|nd|rd|th)?\s*(?:,)?\s*(\d{{3}})\b',
+            re.IGNORECASE,
+        )
+        day_first_partial_year_pattern = re.compile(
+            rf'\b(?:(?:{SUBJECT_WEEKDAY_TOKEN_PATTERN})\.?,?\s+)?(\d{{1,2}})(?:st|nd|rd|th)?\s+({SUBJECT_MONTH_TOKEN_PATTERN})\.?\s*(?:,)?\s*(\d{{3}})\b',
+            re.IGNORECASE,
+        )
+        month_first_no_year_pattern = re.compile(
+            rf'\b(?:(?:{SUBJECT_WEEKDAY_TOKEN_PATTERN})\.?,?\s+)?({SUBJECT_MONTH_TOKEN_PATTERN})\.?\s*(\d{{1,2}})(?:st|nd|rd|th)?\b',
+            re.IGNORECASE,
+        )
+        day_first_no_year_pattern = re.compile(
+            rf'\b(?:(?:{SUBJECT_WEEKDAY_TOKEN_PATTERN})\.?,?\s+)?(\d{{1,2}})(?:st|nd|rd|th)?\s+({SUBJECT_MONTH_TOKEN_PATTERN})\.?\b',
+            re.IGNORECASE,
+        )
+
+        for month_str, day, year_fragment in month_first_partial_year_pattern.findall(normalized_subject):
+            if str(reference_dt.year).startswith(year_fragment):
+                month = SUBJECT_MONTH_MAP.get(month_str.lower().rstrip('.'))
+                if month:
+                    add_inferred_candidate(reference_dt.year, month, day)
+
+        for day, month_str, year_fragment in day_first_partial_year_pattern.findall(normalized_subject):
+            if str(reference_dt.year).startswith(year_fragment):
+                month = SUBJECT_MONTH_MAP.get(month_str.lower().rstrip('.'))
+                if month:
+                    add_inferred_candidate(reference_dt.year, month, day)
+
+        if not inferred_candidates:
+            for month_str, day in month_first_no_year_pattern.findall(normalized_subject):
+                month = SUBJECT_MONTH_MAP.get(month_str.lower().rstrip('.'))
+                if month:
+                    add_inferred_candidate(reference_dt.year, month, day)
+
+            for day, month_str in day_first_no_year_pattern.findall(normalized_subject):
+                month = SUBJECT_MONTH_MAP.get(month_str.lower().rstrip('.'))
+                if month:
+                    add_inferred_candidate(reference_dt.year, month, day)
+
+        candidates = tuple(inferred_candidates)
+
+    if not candidates:
         return None
 
-    # Support both abbreviated and full month names, for example
-    # "Mar 2, 2026" and "March 2, 2026".
-    date_pattern = (
-        r'(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|'
-        r'Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|'
-        r'Nov(?:ember)?|Dec(?:ember)?)\s+(\d{1,2}),?\s+(\d{4})'
+    if len(candidates) == 1 or not reference_dt:
+        return candidates[0]
+
+    def candidate_distance(candidate_value):
+        try:
+            candidate_dt = datetime.strptime(candidate_value, "%Y-%m-%d")
+        except ValueError:
+            return (float("inf"), candidate_value)
+        return (abs((candidate_dt - reference_dt).days), candidate_value)
+
+    return min(candidates, key=candidate_distance)
+
+
+def get_effective_interview_date(record):
+    subject_date = parse_interview_date_from_subject(
+        record.get("subject", ""),
+        reference_date=record.get("receivedDateTime"),
     )
-    match = re.search(date_pattern, subject, re.IGNORECASE)
+    if subject_date:
+        return subject_date
 
-    if match:
-        month_str, day, year = match.groups()
-        month_map = {
-            'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04',
-            'may': '05', 'jun': '06', 'jul': '07', 'aug': '08',
-            'sep': '09', 'sept': '09', 'oct': '10', 'nov': '11', 'dec': '12',
-            'january': '01', 'february': '02', 'march': '03', 'april': '04',
-            'june': '06', 'july': '07', 'august': '08', 'september': '09',
-            'october': '10', 'november': '11', 'december': '12',
-        }
-        month = month_map.get(month_str.lower(), '01')
-        return f"{year}-{month}-{int(day):02d}"
-
-    return None
+    received_date = str(record.get("receivedDateTime") or "").strip()
+    return received_date[:10] if received_date else ""
 
 
-def get_completed_interview_records(
+def get_interview_activity_records(
     db,
     start_date="",
     end_date="",
@@ -863,6 +1528,7 @@ def get_completed_interview_records(
     filter_expert=None,
     active_experts=None,
     expert_team_map=None,
+    statuses=None,
 ):
     if expert_team_map is None:
         expert_team_map = get_expert_team_map(db)[0]
@@ -870,9 +1536,10 @@ def get_completed_interview_records(
     directory = get_team_management_directory()
     records = list(
         db.taskBody.find(
-            build_completed_interview_query(),
+            build_interview_activity_match(statuses=statuses),
             {
                 "assignedTo": 1,
+                "status": 1,
                 "subject": 1,
                 "receivedDateTime": 1,
                 "actualRound": 1,
@@ -899,8 +1566,7 @@ def get_completed_interview_records(
         if filter_expert and expert_key != filter_expert:
             continue
 
-        subject = record.get("subject", "")
-        interview_date = parse_interview_date_from_subject(subject)
+        interview_date = get_effective_interview_date(record)
         if start_date or end_date:
             if not interview_date:
                 continue
@@ -914,11 +1580,56 @@ def get_completed_interview_records(
                 **record,
                 "expert_key": expert_key,
                 "team_name": team_name,
-                "interview_date": interview_date,
+                "interview_date": interview_date or None,
+                "status_bucket": normalize_interview_status_bucket(
+                    record.get("status"),
+                    default_bucket="Not Done",
+                ),
             }
         )
 
     return normalized_records
+
+
+def get_completed_interview_records(
+    db,
+    start_date="",
+    end_date="",
+    filter_team=None,
+    filter_expert=None,
+    active_experts=None,
+    expert_team_map=None,
+):
+    return get_interview_activity_records(
+        db,
+        start_date=start_date,
+        end_date=end_date,
+        filter_team=filter_team,
+        filter_expert=filter_expert,
+        active_experts=active_experts,
+        expert_team_map=expert_team_map,
+        statuses=["Completed"],
+    )
+
+
+def get_interview_stats_records(
+    db,
+    start_date="",
+    end_date="",
+    filter_team=None,
+    filter_expert=None,
+    active_experts=None,
+    expert_team_map=None,
+):
+    return get_interview_activity_records(
+        db,
+        start_date=start_date,
+        end_date=end_date,
+        filter_team=filter_team,
+        filter_expert=filter_expert,
+        active_experts=active_experts,
+        expert_team_map=expert_team_map,
+    )
 
 
 @analytics_bp.route('/interview-records')
@@ -926,7 +1637,7 @@ def interview_records():
     """
     Interview Records page showing detailed interview records with subjects
     per expert/team with date filtering.
-    Uses interview date from subject line for filtering (not receivedDateTime).
+    Uses the interview date parsed from the subject line as the primary filter date.
     """
     db = get_db()
     start_date, end_date = get_date_filter_strings()
@@ -936,12 +1647,12 @@ def interview_records():
     filter_expert = normalize_lookup_text(request.args.get('expert', '')) or None
 
     expert_team_map, teams_map = get_expert_team_map(db)
-    teams_list, all_experts, _ = get_completed_interview_filter_options(db)
+    teams_list, all_experts, _ = get_interview_stats_filter_options(db)
 
     cache_key = analytics_cache_key("interview-records-page", start_date, end_date, filter_team, filter_expert)
     cached = current_app.cache.get(cache_key)
     if cached is None:
-        records = get_completed_interview_records(
+        records = get_interview_stats_records(
             db,
             start_date=start_date,
             end_date=end_date,
@@ -962,16 +1673,16 @@ def interview_records():
 
             subject = r.get('subject', '')
             interview_date = r.get("interview_date")
-            display_date = interview_date if interview_date else (
-                r.get('receivedDateTime', '')[:10] if r.get('receivedDateTime') else 'N/A'
-            )
-
-            sort_date = interview_date or r.get('receivedDateTime', '') or ''
+            display_date = interview_date or 'N/A'
+            sort_date = interview_date or ''
+            raw_status = clean_text(r.get('status')) or r.get('status_bucket') or 'Not Done'
 
             expert_records[(team_name, expert_key)].append({
                 'subject': subject or 'N/A',
                 'candidate': r.get('Candidate Name', 'N/A'),
                 'round': r.get('actualRound', 'N/A'),
+                'status': raw_status,
+                'status_bucket': r.get('status_bucket', 'Not Done'),
                 'date': display_date,
                 'sort_date': sort_date,
             })
@@ -982,6 +1693,8 @@ def interview_records():
                 'subject': subject or 'N/A',
                 'candidate': r.get('Candidate Name', 'N/A'),
                 'round': r.get('actualRound', 'N/A'),
+                'status': raw_status,
+                'status_bucket': r.get('status_bucket', 'Not Done'),
                 'date': sort_date,
             })
 
@@ -1051,7 +1764,7 @@ def export_center():
     db = get_db()
     start_date, end_date = get_date_filter_strings()
 
-    teams_list, experts, teams_map = get_completed_interview_filter_options(db)
+    teams_list, experts, teams_map = get_interview_stats_filter_options(db)
     export_options = get_export_filter_options()
 
     return render_template(
@@ -1086,7 +1799,7 @@ def export_preview():
     fields = []
 
     if export_type == 'interview_records':
-        records = get_completed_interview_records(
+        records = get_interview_stats_records(
             db,
             start_date=start_date,
             end_date=end_date,
@@ -1099,14 +1812,14 @@ def export_preview():
         for r in records:
             expert_key = r['expert_key']
             team = r['team_name']
-            interview_date = r.get('interview_date') or (r.get('receivedDateTime', '') or '')[:10]
+            interview_date = r.get('interview_date') or 'N/A'
             preview_data.append({
                 'Team': team,
                 'Expert': expert_key.split('@')[0] if '@' in expert_key else expert_key,
                 'Subject': (r.get('subject', '') or '')[:50] + '...' if len(r.get('subject', '') or '') > 50 else r.get('subject', ''),
                 'Round': r.get('actualRound', ''),
                 'Date': interview_date,
-                'Status': 'Completed',
+                'Status': clean_text(r.get('status')) or r.get('status_bucket') or 'Not Done',
             })
         fields = ['Team', 'Expert', 'Subject', 'Round', 'Date', 'Status']
 
@@ -1157,7 +1870,7 @@ def export_preview():
         fields = ['Rank', 'Expert', 'Team', 'Screening', '1st', '2nd', '3rd/Tech', 'Loop Round', 'Final', 'Total', 'Conv%']
 
     elif export_type == 'interview_stats':
-        # Interview stats: completed interview counts per expert using the same record rules as the page.
+        # Interview stats: all-status interview counts per expert using the same record rules as the page.
         expert_stats_map = aggregate_interview_stats_by_expert(
             db,
             start_date,
@@ -1247,9 +1960,9 @@ def export_interview_records_excel(db, start_date, end_date, filter_team, filter
                                    active_experts, expert_team_map, teams_map, export_format='excel'):
     """
     EXPORT TYPE 1: Interview Records
-    Columns: Team, Expert, Subject, Candidate, Round, ReceivedDateTime, Status
+    Columns: Team, Expert, Subject, Candidate, Round, InterviewDate, Status
     """
-    records = get_completed_interview_records(
+    records = get_interview_stats_records(
         db,
         start_date=start_date,
         end_date=end_date,
@@ -1270,8 +1983,9 @@ def export_interview_records_excel(db, start_date, end_date, filter_team, filter
             'Subject': r.get('subject', ''),
             'Candidate': r.get('Candidate Name', ''),
             'Round': r.get('actualRound', ''),
+            'InterviewDate': r.get('interview_date') or '',
             'ReceivedDateTime': r.get('receivedDateTime', ''),
-            'Status': 'Completed'
+            'Status': clean_text(r.get('status')) or r.get('status_bucket') or 'Not Done',
         })
 
     if not excel_rows:
@@ -1279,7 +1993,7 @@ def export_interview_records_excel(db, start_date, end_date, filter_team, filter
 
     # Create DataFrame and sort
     df = pd.DataFrame(excel_rows)
-    df = df.sort_values(by=["Team", "Expert", "ReceivedDateTime"], ascending=[True, True, True])
+    df = df.sort_values(by=["Team", "Expert", "InterviewDate", "ReceivedDateTime"], ascending=[True, True, True, True])
 
     # Generate filename base
     start_str = start_date[:10] if start_date else 'all'
@@ -1495,6 +2209,65 @@ def export_funnel_combined_excel(db, start_date, end_date, filter_team, filter_e
         )
 
 
+def export_candidate_analytics_excel(candidate_stats, client_data, start_date, end_date, export_format='excel'):
+    rows = []
+    po_state = client_data.get("state")
+    for candidate in candidate_stats:
+        client_names = candidate.get("client_names") or []
+        rows.append({
+            'Rank': candidate.get('rank', 0),
+            'Candidate': candidate.get('candidate', ''),
+            'Lead Team': candidate.get('lead_team', ''),
+            'Lead Expert': candidate.get('lead_expert', ''),
+            'Teams Count': candidate.get('teams_count', 0),
+            'Experts Count': candidate.get('experts_count', 0),
+            'Screening': candidate.get('screening', 0),
+            '1st': candidate.get('first', 0),
+            '2nd': candidate.get('second', 0),
+            '3rd/Technical': candidate.get('third_tech', 0),
+            'Loop Round': candidate.get('loop_round', 0),
+            'Final': candidate.get('final', 0),
+            'Total Interviews': candidate.get('interview_count', 0),
+            'Screening_to_1st_%': candidate.get('screening_to_1st', 0),
+            '1st_to_2nd_%': candidate.get('first_to_2nd', 0),
+            '2nd_to_3rd_%': candidate.get('second_to_3rd', 0),
+            '3rd_to_Loop_%': candidate.get('third_to_loop', 0),
+            'Loop_to_Final_%': candidate.get('loop_to_final', 0),
+            'Unique Clients': candidate.get('unique_clients') if po_state == 'ready' else '',
+            'PO Records': candidate.get('po_count') if po_state == 'ready' else '',
+            'Client Names': ", ".join(client_names) if po_state == 'ready' else ('Locked' if po_state == 'locked' else ''),
+        })
+
+    if not rows:
+        return jsonify({'success': False, 'error': 'No candidate analytics rows found for the given filters'})
+
+    df = pd.DataFrame(rows)
+    start_str = start_date[:10] if start_date else 'all'
+    end_str = end_date[:10] if end_date else 'all'
+
+    if export_format == 'csv':
+        output = BytesIO()
+        df.to_csv(output, index=False)
+        output.seek(0)
+        return send_file(
+            output,
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name=f"candidate_analytics_{start_str}_to_{end_str}.csv"
+        )
+
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name='Candidates', index=False)
+    output.seek(0)
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=f"candidate_analytics_{start_str}_to_{end_str}.xlsx"
+    )
+
+
 def export_experts_excel(expert_stats, start_date, end_date, export_format='excel'):
     """Simple expert funnel export."""
     rows = []
@@ -1588,7 +2361,7 @@ def export_teams_excel(team_stats, start_date, end_date, export_format='excel'):
 def export_interview_stats_excel(db, start_date, end_date, filter_team, filter_expert,
                                  active_experts, expert_team_map, export_format='excel'):
     """
-    Export interview stats using the same completed-record rules as the page.
+    Export interview stats using the same all-status rules as the page.
     """
     expert_stats_map = aggregate_interview_stats_by_expert(
         db,
