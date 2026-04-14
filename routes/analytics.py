@@ -69,8 +69,8 @@ INTERVIEW_STATUS_BUCKETS = {
     "not done": "Not Done",
     "notdone": "Not Done",
     # "acknowledged": "Not Done",
-    "assigned": "Not Done",
-    "pending": "Not Done",
+    # "assigned": "Not Done",
+    # "pending": "Not Done",
 }
 
 SUBJECT_MONTH_MAP = {
@@ -282,7 +282,7 @@ def aggregate_interview_stats_by_expert(db, start_date="", end_date="", active_e
             stats["CancelledCount"] += 1
         elif status_bucket == "Rescheduled":
             stats["RescheduledCount"] += 1
-        else:
+        elif status_bucket == "Not Done":
             stats["NotDoneCount"] += 1
         stats["TotalInterviews"] += 1
 
@@ -1583,7 +1583,6 @@ def get_interview_activity_records(
                 "interview_date": interview_date or None,
                 "status_bucket": normalize_interview_status_bucket(
                     record.get("status"),
-                    default_bucket="Not Done",
                 ),
             }
         )
