@@ -68,7 +68,7 @@ INTERVIEW_STATUS_BUCKETS = {
     "rescheduled": "Rescheduled",
     "not done": "Not Done",
     "notdone": "Not Done",
-    "acknowledged": "Not Done",
+    # "acknowledged": "Not Done",
     "assigned": "Not Done",
     "pending": "Not Done",
 }
