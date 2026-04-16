@@ -170,6 +170,7 @@
                         {% endif %}
                         <span>{{ record.received_at_display }}</span>
                         <span><strong>POs:</strong> 1</span>
+                        <span><strong>Client:</strong> {{ record.client or 'N/A' }}</span>
                         <span><strong>Rate:</strong> {{ record.rate or 'N/A' }}</span>
                         <span><strong>Signup Date:</strong> {{ record.signup_date or 'N/A' }}</span>
                     </div>

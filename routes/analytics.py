@@ -770,6 +770,8 @@ def get_candidate_funnel_data(
         expert_counter = candidate_expert_counts.get(candidate_key, Counter())
         team_counter = candidate_team_counts.get(candidate_key, Counter())
         client_counts = client_counts_by_candidate.get(candidate_key, {})
+        funnel_metrics = build_funnel_metrics(stages)
+        activity_total = sum(stages.values())
 
         candidate_stats.append({
             "candidate_key": candidate_key,
@@ -781,14 +783,16 @@ def get_candidate_funnel_data(
             "unique_clients": len(client_counts) if client_data.get("state") == "ready" else None,
             "po_count": sum(client_counts.values()) if client_data.get("state") == "ready" else None,
             "client_names": sorted(client_counts.keys()),
-            **build_funnel_metrics(stages),
+            "activity_total": activity_total,
+            **funnel_metrics,
         })
 
     candidate_stats.sort(
         key=lambda item: (
-            item["unique_clients"] or 0,
-            item["screening_to_1st"],
+            item["activity_total"],
+            item["screening"],
             item["interview_count"],
+            item["first"],
             item["final"],
         ),
         reverse=True,
@@ -2212,30 +2216,27 @@ def export_candidate_analytics_excel(candidate_stats, client_data, start_date, e
     rows = []
     po_state = client_data.get("state")
     for candidate in candidate_stats:
-        client_names = candidate.get("client_names") or []
-        rows.append({
+        row = {
             'Rank': candidate.get('rank', 0),
             'Candidate': candidate.get('candidate', ''),
-            'Lead Team': candidate.get('lead_team', ''),
-            'Lead Expert': candidate.get('lead_expert', ''),
-            'Teams Count': candidate.get('teams_count', 0),
-            'Experts Count': candidate.get('experts_count', 0),
             'Screening': candidate.get('screening', 0),
-            '1st': candidate.get('first', 0),
-            '2nd': candidate.get('second', 0),
+            'Scr to 1st %': min(candidate.get('screening_to_1st', 0), 100),
+            '1st Round': candidate.get('first', 0),
+            '1st to 2nd %': min(candidate.get('first_to_2nd', 0), 100),
+            '2nd Round': candidate.get('second', 0),
+            '2nd to 3rd %': min(candidate.get('second_to_3rd', 0), 100),
             '3rd/Technical': candidate.get('third_tech', 0),
+            '3rd to Loop %': min(candidate.get('third_to_loop', 0), 100),
             'Loop Round': candidate.get('loop_round', 0),
+            'Loop to Final %': min(candidate.get('loop_to_final', 0), 100),
             'Final': candidate.get('final', 0),
             'Total Interviews': candidate.get('interview_count', 0),
-            'Screening_to_1st_%': candidate.get('screening_to_1st', 0),
-            '1st_to_2nd_%': candidate.get('first_to_2nd', 0),
-            '2nd_to_3rd_%': candidate.get('second_to_3rd', 0),
-            '3rd_to_Loop_%': candidate.get('third_to_loop', 0),
-            'Loop_to_Final_%': candidate.get('loop_to_final', 0),
-            'Unique Clients': candidate.get('unique_clients') if po_state == 'ready' else '',
-            'PO Records': candidate.get('po_count') if po_state == 'ready' else '',
-            'Client Names': ", ".join(client_names) if po_state == 'ready' else ('Locked' if po_state == 'locked' else ''),
-        })
+        }
+        if po_state == 'ready':
+            row['Unique Clients'] = candidate.get('unique_clients') or 0
+            row['POs'] = candidate.get('po_count') or 0
+            row['Client Names'] = ", ".join(candidate.get('client_names') or [])
+        rows.append(row)
 
     if not rows:
         return jsonify({'success': False, 'error': 'No candidate analytics rows found for the given filters'})
